@@ -14,6 +14,10 @@ for _s in ("demo-compile", "demo-dashboard", "graph-loop"):
     with open(os.path.join(_claude, "skills", _s, "SKILL.md"), "w", encoding="utf-8") as _f:
         _f.write("---\nname: %s\ndescription: demo skill\n---\n# %s\n" % (_s, _s))
 os.environ["WB_CLAUDE_DIR"] = _claude
+# The harness-neutral scanners (Kiro, ~/.agents, Codex) also feed validation and the default library. Pin them to empty
+# temp roots so no test sees this machine's real installs; tests that need content build their own root.
+for _v in ("WB_KIRO_DIR", "WB_AGENTS_DIR", "WB_CODEX_DIR"):
+    os.environ[_v] = tempfile.mkdtemp(prefix="wb-" + _v[3:].lower() + "-")
 os.makedirs(os.path.join(_claude, "hooks"), exist_ok=True)
 with open(os.path.join(_claude, "hooks", "safety-gate.sh"), "w", encoding="utf-8") as _f:
     _f.write("#!/bin/sh\nexit 0\n")

@@ -15,6 +15,9 @@ import subprocess
 import sys
 from datetime import datetime
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import scanners as S  # noqa: E402
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 HOME = os.path.expanduser("~")
 TASK_FILTER = re.compile(r"workflow|nightly|inbox|report|council", re.I)
@@ -72,8 +75,9 @@ def module_touches(mod):
 
 
 def default_roots():
-    return {"claude": os.path.join(HOME, ".claude"), "codex": os.path.join(HOME, ".Codex"),
-            "kiro": os.path.join(HOME, ".kiro"), "_mcp_json": os.path.join(HOME, ".claude.json"), "_tasks": True}
+    return {"claude": os.path.join(HOME, ".claude"), "codex": os.environ.get("WB_CODEX_DIR") or os.path.join(HOME, ".Codex"),
+            "kiro": os.environ.get("WB_KIRO_DIR") or os.path.join(HOME, ".kiro"),
+            "agents": os.environ.get("WB_AGENTS_DIR") or os.path.join(HOME, ".agents"), "_mcp_json": os.path.join(HOME, ".claude.json"), "_tasks": True}
 
 
 def _now():
@@ -226,14 +230,18 @@ def _scan_codex(root, items):
 
 
 def _scan_kiro(root, items):
-    if not root or not os.path.isdir(root):
-        return
-    for p in sorted(glob.glob(os.path.join(root, "steering", "*.md"))):
-        n = os.path.splitext(os.path.basename(p))[0]
-        fm, _ = frontmatter(_read(p, 8000))
-        items.append(_item("kiro", "skill", n, fm.get("description", "Kiro steering file"), p, True, None))
-    for p in sorted(glob.glob(os.path.join(root, "hooks", "*.json"))):
-        items.append(_item("kiro", "hook", os.path.splitext(os.path.basename(p))[0], "Kiro hook", p, True, None))
+    """Kiro install, via the harness-neutral scanners (skills, recursive steering, agent JSON with embedded hooks,
+    MCP servers and referenced resources). See scanners.py."""
+    col = S.Collector()
+    S.scan_kiro(root, col)
+    items.extend(col.items)
+
+
+def _scan_generic(root, items):
+    """A plain ~/.agents style root (skills/*/SKILL.md + AGENTS.md), usable by any harness that follows the open layout."""
+    col = S.Collector()
+    S.scan_generic(root, col)
+    items.extend(col.items)
 
 
 def _scan_modules(items):
@@ -277,11 +285,14 @@ def scan(roots=None):
     _scan_claude(roots.get("claude"), roots.get("_mcp_json"), items)
     _scan_codex(roots.get("codex"), items)
     _scan_kiro(roots.get("kiro"), items)
+    _scan_generic(roots.get("agents"), items)
     _scan_modules(items)
     if roots.get("_tasks"):
         _scan_tasks(items)
     ts = _now()
+    S.unique_ids(items)
     for it in items:
+        it.setdefault("harness", it.get("source_agent"))
         it["scanned_at"] = ts
         if it["kind"] == "skill":
             it["has_proposal"] = os.path.isfile(os.path.join(HERE, "splits", it["name"] + ".proposal.json"))
