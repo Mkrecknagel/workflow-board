@@ -1,0 +1,485 @@
+{
+  "$comment": "workflow-board/v1 (v2 additions: step ref.kind, x-enforce-types, origin_module/module_version/pasted_at/proposal card fields; v2.1: optional card style{color} + fields{} and board group_styles{group:{color}}; v2.2: group_styles[group].size{w,h} optional min outline size; boards stay schema v1). Interpreted by validate.py (subset: type, required, enum, const, pattern, properties, items, minimum). x- keys are validator extensions. v3: card types boundary/component/datastore/external/person; top-level card keys drill (board id) and boundary (card id) and size{w,h}; fields.verified=false marks UNVERIFIED facts. v4 (all optional, still workflow-board/v1): card types container + note; gate ref.kind approval; card keys pin{port,sample,synthetic} and on_fail{target,record}; ref.via_container; v5: optional card run_mode inline|background|wait (hashed behaviour; dispatchable skill/tool/agent/step-task cards only; refused on gate/immutable/hook/container/note/structural); group_styles[g].collapsed (layout-only); edge port names may contain ':' (container cap:<tool> ports).",
+  "type": "object",
+  "required": [
+    "schema",
+    "board",
+    "version",
+    "execution_mode",
+    "saved_at",
+    "cards",
+    "edges",
+    "integrity_hash"
+  ],
+  "properties": {
+    "schema": {
+      "const": "workflow-board/v1"
+    },
+    "board": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "execution_mode": {
+      "enum": [
+        "observe",
+        "enforce"
+      ]
+    },
+    "saved_at": {
+      "type": "string"
+    },
+    "integrity_hash": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "cards": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "type",
+          "label",
+          "immutable",
+          "enabled",
+          "execution_mode",
+          "ref",
+          "ports",
+          "pos"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]*$"
+          },
+          "type": {
+            "enum": [
+              "trigger",
+              "input",
+              "skill",
+              "hook",
+              "gate",
+              "agent",
+              "output",
+              "tool",
+              "step",
+              "boundary",
+              "component",
+              "datastore",
+              "external",
+              "person",
+              "container",
+              "note"
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "group": {
+            "type": "string"
+          },
+          "sop": {
+            "type": "string"
+          },
+          "order": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "immutable": {
+            "type": "boolean"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "execution_mode": {
+            "enum": [
+              "observe",
+              "enforce"
+            ]
+          },
+          "run_mode": {
+            "enum": [
+              "inline",
+              "background",
+              "wait"
+            ]
+          },
+          "ref": {
+            "type": "object"
+          },
+          "contract": {
+            "type": "object"
+          },
+          "ports": {
+            "type": "object",
+            "required": [
+              "in",
+              "out"
+            ],
+            "properties": {
+              "in": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "out": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "pos": {
+            "type": "object",
+            "required": [
+              "x",
+              "y"
+            ],
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              }
+            }
+          },
+          "origin_module": {
+            "type": "string"
+          },
+          "module_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "pasted_at": {
+            "type": "string"
+          },
+          "proposal": {
+            "type": "string"
+          },
+          "style": {
+            "type": "object",
+            "properties": {
+              "color": {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$"
+              }
+            }
+          },
+          "fields": {
+            "type": "object"
+          },
+          "drill": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]*$"
+          },
+          "boundary": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]*$"
+          },
+          "size": {
+            "type": "object",
+            "required": [
+              "w",
+              "h"
+            ],
+            "properties": {
+              "w": {
+                "type": "number",
+                "minimum": 1
+              },
+              "h": {
+                "type": "number",
+                "minimum": 1
+              }
+            }
+          },
+          "pin": {
+            "type": "object",
+            "required": [
+              "port",
+              "sample",
+              "synthetic"
+            ],
+            "properties": {
+              "port": {
+                "type": "string"
+              },
+              "sample": {
+                "type": "object"
+              },
+              "synthetic": {
+                "const": true
+              }
+            }
+          },
+          "on_fail": {
+            "type": "object",
+            "required": [
+              "target",
+              "record"
+            ],
+            "properties": {
+              "target": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]*$"
+              },
+              "record": {
+                "const": "telemetry"
+              }
+            }
+          }
+        }
+      }
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "from",
+          "to"
+        ],
+        "properties": {
+          "from": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+\\.[A-Za-z0-9_:-]+$"
+          },
+          "to": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+\\.[A-Za-z0-9_:-]+$"
+          }
+        }
+      }
+    },
+    "group_styles": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "color": {
+            "type": "string"
+          },
+          "size": {
+            "type": "object",
+            "properties": {
+              "w": {
+                "type": "number"
+              },
+              "h": {
+                "type": "number"
+              }
+            },
+            "additionalProperties": false
+          },
+          "collapsed": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "x-verbs": [
+    "inject",
+    "deny"
+  ],
+  "x-ref-required": {
+    "trigger": [
+      "event"
+    ],
+    "input": [
+      "schema"
+    ],
+    "skill": [
+      "name"
+    ],
+    "hook": [
+      "event",
+      "file"
+    ],
+    "gate": [
+      "kind",
+      "rule",
+      "verb"
+    ],
+    "agent": [
+      "route",
+      "seat",
+      "verb"
+    ],
+    "output": [
+      "schema"
+    ],
+    "tool": [
+      "name"
+    ],
+    "step": [],
+    "boundary": [
+      "kind"
+    ],
+    "component": [
+      "kind"
+    ],
+    "datastore": [
+      "kind",
+      "path"
+    ],
+    "external": [
+      "vendor",
+      "protocol"
+    ],
+    "person": [
+      "role"
+    ],
+    "container": [
+      "kind",
+      "connector"
+    ],
+    "note": [
+      "kind"
+    ]
+  },
+  "x-immutable-required": {
+    "example-governed-board": [
+      "hook-agent-spawn-gate",
+      "gate-run-budget"
+    ]
+  },
+  "x-builtin-tools": [
+    "Agent",
+    "Bash",
+    "Read",
+    "Write",
+    "Edit",
+    "MultiEdit",
+    "Glob",
+    "Grep",
+    "PowerShell",
+    "WebFetch",
+    "WebSearch",
+    "NotebookEdit",
+    "Skill",
+    "ToolSearch"
+  ],
+  "x-connected-mcp-prefixes": [
+    "mcp__plugin_discord_discord__",
+    "mcp__claude_ai_Gmail__",
+    "mcp__claude_ai_Google_Calendar__",
+    "mcp__claude_ai_Google_Drive__",
+    "mcp__claude_ai_Claude_Docs__",
+    "mcp__claude_ai_Canva__",
+    "mcp__claude-in-chrome__",
+    "mcp__n8n-mcp__",
+    "mcp__notes-mcp__",
+    "mcp__notebooklm-mcp__"
+  ],
+  "x-enforce-types": [
+    "gate",
+    "agent"
+  ],
+  "x-step-ref-kinds": [
+    "task",
+    "choice",
+    "parallel",
+    "map",
+    "wait",
+    "fail",
+    "succeed",
+    "proposed"
+  ],
+  "x-reserved-field-keys": [
+    "id",
+    "type",
+    "ref",
+    "pos",
+    "immutable",
+    "execution_mode",
+    "enabled",
+    "style",
+    "fields"
+  ],
+  "x-ref-kinds": {
+    "boundary": [
+      "machine",
+      "vm",
+      "network",
+      "trust",
+      "entity",
+      "cloud"
+    ],
+    "component": [
+      "daemon",
+      "service",
+      "model",
+      "schedule"
+    ],
+    "datastore": [
+      "file",
+      "db",
+      "git",
+      "cloud"
+    ],
+    "container": [
+      "connector"
+    ],
+    "note": [
+      "note"
+    ]
+  },
+  "x-datastore-authority": [
+    "SoT",
+    "derived",
+    "snapshot"
+  ],
+  "x-v3-types": [
+    "boundary",
+    "component",
+    "datastore",
+    "external",
+    "person"
+  ],
+  "x-v4-types": [
+    "container",
+    "note"
+  ],
+  "x-run-mode": {
+    "card-types": [
+      "skill",
+      "tool",
+      "agent",
+      "step"
+    ],
+    "step-ref-kinds": [
+      "task"
+    ]
+  },
+  "x-v4": {
+    "gate-approval-kind": "approval",
+    "gate-approval-approver": "owner",
+    "gate-approval-verb": "deny",
+    "container-connectors": [
+      "gmail",
+      "drive",
+      "calendar",
+      "discord"
+    ],
+    "note-text-max": 1200,
+    "pin-sample-max-bytes": 2048,
+    "on-fail-record": "telemetry",
+    "token-like-account-patterns": [
+      "[A-Za-z0-9_\\-+/=]{32,}",
+      "(?i)\\b(sk|pk|ghp|gho|xox[abp]|ya29|AKIA|Bearer)[-_ ]?[A-Za-z0-9]{8,}",
+      "(?i)(token|secret|password|passwd|api[_-]?key|authorization)\\s*[:=]",
+      "[A-Za-z0-9_-]{23,28}\\.[A-Za-z0-9_-]{6,7}\\.[A-Za-z0-9_-]{27,}"
+    ]
+  }
+}

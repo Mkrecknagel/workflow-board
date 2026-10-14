@@ -1,0 +1,116 @@
+{
+  "schema": "workflow-board/v1",
+  "board": "demo-board",
+  "version": 1,
+  "execution_mode": "observe",
+  "saved_at": "2026-01-01T00:00:00Z",
+  "integrity_hash": null,
+  "cards": [
+    {
+      "id": "st-intake",
+      "type": "step",
+      "label": "Intake request",
+      "immutable": false,
+      "enabled": true,
+      "execution_mode": "observe",
+      "ref": {
+        "kind": "task"
+      },
+      "ports": {
+        "in": [],
+        "out": [
+          "next"
+        ]
+      },
+      "pos": {
+        "x": 40,
+        "y": 60
+      },
+      "group": "Intake"
+    },
+    {
+      "id": "st-draft",
+      "type": "step",
+      "label": "Draft response",
+      "immutable": false,
+      "enabled": true,
+      "execution_mode": "observe",
+      "ref": {
+        "kind": "task"
+      },
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "next"
+        ]
+      },
+      "pos": {
+        "x": 320,
+        "y": 60
+      },
+      "group": "Work"
+    },
+    {
+      "id": "st-review",
+      "type": "step",
+      "label": "Review draft",
+      "immutable": false,
+      "enabled": true,
+      "execution_mode": "observe",
+      "ref": {
+        "kind": "task"
+      },
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "next"
+        ]
+      },
+      "pos": {
+        "x": 600,
+        "y": 60
+      },
+      "group": "Work"
+    },
+    {
+      "id": "st-publish",
+      "type": "step",
+      "label": "Publish result",
+      "immutable": false,
+      "enabled": true,
+      "execution_mode": "observe",
+      "ref": {
+        "kind": "task"
+      },
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": []
+      },
+      "pos": {
+        "x": 880,
+        "y": 60
+      },
+      "group": "Release"
+    }
+  ],
+  "edges": [
+    {
+      "from": "st-intake.next",
+      "to": "st-draft.in"
+    },
+    {
+      "from": "st-draft.next",
+      "to": "st-review.in"
+    },
+    {
+      "from": "st-review.next",
+      "to": "st-publish.in"
+    }
+  ]
+}

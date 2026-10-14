@@ -1,0 +1,117 @@
+{
+  "viewports": {
+    "desktop": {
+      "width": 1440,
+      "height": 900,
+      "touch": false
+    },
+    "phone": {
+      "width": 390,
+      "height": 844,
+      "touch": true
+    }
+  },
+  "steps": [
+    {
+      "id": "a",
+      "action": "Open the starter board and read the orientation (title, message line, legend, help text, vocabulary on screen).",
+      "expected": "Board renders with cards, label names the active board, no console or page errors, no blank screen; plain-language orientation is visible.",
+      "evidence": "docs/personas/<persona>/<viewport>-a.json"
+    },
+    {
+      "id": "b",
+      "action": "Click every toolbar, inspector, palette, lens and HUD button once and note the visible result.",
+      "expected": "Every button gives a visible result or a clear message; none crashes, blanks the screen or is unreachable.",
+      "evidence": "docs/personas/<persona>/<viewport>-b.json"
+    },
+    {
+      "id": "c",
+      "action": "Build a test board end to end: zoom into an empty card, add 4+ cards, connect 3+ edges, add a note, pin a sample, Save, reload.",
+      "expected": "The board file appears only once a card is added, holds the cards, edges and note, and survives reload; the parent card links to it.",
+      "evidence": "docs/personas/<persona>/<viewport>-c.json"
+    },
+    {
+      "id": "d",
+      "action": "Visual-only edits (drag, resize, recolour, note text), wait for autosave, reload.",
+      "expected": "Edits autosave with no Save click, persist after reload, wbDirty stays clean, Save does not say deploy needed, active.json is byte-identical.",
+      "evidence": "docs/personas/<persona>/<viewport>-d.json"
+    },
+    {
+      "id": "e",
+      "action": "Behaviour edit (rename an action card), then Save, Deploy request, History diff and restore.",
+      "expected": "Behaviour edit is never autosaved; Save says deploy needed; the dirty pill shows; Deploy request shows the command only; restore brings the old board back; active.json untouched.",
+      "evidence": "docs/personas/<persona>/<viewport>-e.json"
+    },
+    {
+      "id": "f",
+      "action": "Zoom through a card with an inner board (wheel or pinch), edit inside, zoom out; zoom into an empty card.",
+      "expected": "Label flips to the inner board at about half-screen, inner edit saves to the inner board only, zoom out hands back, empty card creates no file until something is added; phone has an Open button backup.",
+      "evidence": "docs/personas/<persona>/<viewport>-f.json"
+    },
+    {
+      "id": "g",
+      "action": "Cycle run-mode on every eligible card, try the blocked compile card, the approval gate, the immutable card and the connector container.",
+      "expected": "Modes cycle inline, background, wait; blocked card says what would need to change; gate/immutable/container never offer background; wire is offered only for allowed tools; run-mode is never autosaved.",
+      "evidence": "docs/personas/<persona>/<viewport>-g.json"
+    },
+    {
+      "id": "h",
+      "action": "Repeat c to g on the phone viewport with touch gestures.",
+      "expected": "Same results by touch; no horizontal page scroll; controls reachable.",
+      "evidence": "docs/personas/<persona>/<viewport>-h.json"
+    },
+    {
+      "id": "i",
+      "action": "Abuse: rapid drag during zoom handoff, offline autosave, reload mid-edit, two tabs on one board, unsafe requests.",
+      "expected": "No crash, no wrong-board write, no silent loss of an edit, unsafe requests refused by the server.",
+      "evidence": "docs/personas/<persona>/<viewport>-i.json"
+    }
+  ],
+  "personas": [
+    {
+      "id": "dana",
+      "name": "Dana",
+      "brief": "Small-business owner, first-time AI user. 'One fire to the next'; has never mapped a process; handed the starter library. Wants to understand what the board is, drag a library module in, wire two cards, add a sticky note, find what Deploy means. Distrusts jargon (ports, hooks, gates); will click the wrong thing.",
+      "params": {
+        "labelWords": [
+          "Receive order",
+          "Check stock",
+          "Owner",
+          "Shipping carrier"
+        ],
+        "wrongClicks": true,
+        "unsafe": false
+      }
+    },
+    {
+      "id": "erin",
+      "name": "Erin",
+      "brief": "Knows the business workflows, not the tech. Wants to recreate a design-asset-to-publish flow, label cards in her own words, add notes for her team, move groups around on a phone, set a card to run in the background. Avoids the terminal; expects things to just save.",
+      "params": {
+        "labelWords": [
+          "Design the piece",
+          "Photograph it",
+          "Write the caption",
+          "Publish the post"
+        ],
+        "wrongClicks": false,
+        "unsafe": false
+      }
+    },
+    {
+      "id": "frank",
+      "name": "Frank",
+      "brief": "Knows business and AI. Builds a board from a module, edits a gate or hook, toggles enforce/observe, requests a deploy, restores from history, zooms through nested boards, sets run-mode on skill cards, and deliberately tries unsafe things (disable an immutable card, background an approval gate, autosave during a zoom handoff).",
+      "params": {
+        "labelWords": [
+          "Intake step",
+          "Review step",
+          "Approval step",
+          "Release step"
+        ],
+        "wrongClicks": false,
+        "unsafe": true
+      }
+    }
+  ]
+}

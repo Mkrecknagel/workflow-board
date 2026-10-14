@@ -1,0 +1,114 @@
+{
+  "doc": {
+    "schema": "workflow-board/v1",
+    "board": "parity",
+    "version": 1,
+    "execution_mode": "enforce",
+    "saved_at": "2026-10-05T12:00:00-07:00",
+    "integrity_hash": null,
+    "group_styles": {
+      "g": {
+        "color": "#aabbcc"
+      }
+    },
+    "cards": [
+      {
+        "id": "a",
+        "type": "skill",
+        "label": "A é",
+        "enabled": true,
+        "execution_mode": "enforce",
+        "immutable": false,
+        "ref": {
+          "kind": "skill",
+          "name": "x",
+          "n": 1.0
+        },
+        "ports": {
+          "in": [],
+          "out": [
+            "out"
+          ]
+        },
+        "pos": {
+          "x": 1,
+          "y": 2
+        },
+        "size": {
+          "w": 3,
+          "h": 4
+        },
+        "style": {
+          "color": "#ff0000"
+        },
+        "pin": {
+          "port": "out",
+          "sample": "s",
+          "synthetic": true
+        },
+        "run_mode": "background",
+        "group": "g"
+      },
+      {
+        "id": "b",
+        "type": "step",
+        "label": "B",
+        "enabled": true,
+        "execution_mode": "enforce",
+        "immutable": false,
+        "ref": {
+          "z": 1,
+          "a": [
+            3,
+            {
+              "y": 1,
+              "x": 2
+            }
+          ]
+        },
+        "ports": {
+          "in": [
+            "in"
+          ],
+          "out": []
+        },
+        "pos": {
+          "x": 9,
+          "y": 9
+        }
+      },
+      {
+        "id": "n1",
+        "type": "note",
+        "label": "note",
+        "enabled": false,
+        "execution_mode": "observe",
+        "immutable": false,
+        "ref": {},
+        "fields": {
+          "text": "people only"
+        },
+        "pos": {
+          "x": 5,
+          "y": 5
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": "a.out",
+        "to": "b.in"
+      },
+      {
+        "from": "n1.out",
+        "to": "b.in"
+      },
+      {
+        "from": "a.out",
+        "to": "n1.in"
+      }
+    ]
+  },
+  "expected_hash": "2ce96cb61ab6d5d62316edde82c26926d70347af15b269b7eb4787f94128d16d",
+  "expected_text": "{\"board\":\"parity\",\"cards\":[{\"enabled\":true,\"execution_mode\":\"enforce\",\"group\":\"g\",\"id\":\"a\",\"immutable\":false,\"label\":\"A é\",\"ports\":{\"in\":[],\"out\":[\"out\"]},\"ref\":{\"kind\":\"skill\",\"n\":1,\"name\":\"x\"},\"run_mode\":\"background\",\"type\":\"skill\"},{\"enabled\":true,\"execution_mode\":\"enforce\",\"id\":\"b\",\"immutable\":false,\"label\":\"B\",\"ports\":{\"in\":[\"in\"],\"out\":[]},\"ref\":{\"a\":[3,{\"x\":2,\"y\":1}],\"z\":1},\"type\":\"step\"}],\"edges\":[{\"from\":\"a.out\",\"to\":\"b.in\"}],\"execution_mode\":\"enforce\",\"schema\":\"workflow-board/v1\",\"version\":1}"
+}

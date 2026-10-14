@@ -1,0 +1,128 @@
+{
+  "$comment": "workflow-board/proposal/v1. Written by a human or agent turn, never by canvas/server. Steps are inferred and not executable.",
+  "type": "object",
+  "required": [
+    "schema",
+    "target_skill",
+    "target_path",
+    "status",
+    "proposed_by",
+    "proposed_at",
+    "rationale",
+    "inferred",
+    "steps",
+    "edges",
+    "realization_note"
+  ],
+  "properties": {
+    "schema": {
+      "const": "workflow-board/proposal/v1"
+    },
+    "target_skill": {
+      "type": "string"
+    },
+    "target_path": {
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "draft",
+        "approved",
+        "rejected",
+        "realized"
+      ]
+    },
+    "proposed_by": {
+      "type": "string"
+    },
+    "proposed_at": {
+      "type": "string"
+    },
+    "rationale": {
+      "type": "string"
+    },
+    "inferred": {
+      "const": true
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "kind",
+          "scope",
+          "ports"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]*$"
+          },
+          "label": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "task",
+              "choice",
+              "parallel",
+              "map",
+              "wait",
+              "fail",
+              "succeed"
+            ]
+          },
+          "scope": {
+            "type": "string"
+          },
+          "ports": {
+            "type": "object",
+            "required": [
+              "in",
+              "out"
+            ],
+            "properties": {
+              "in": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "out": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "from",
+          "to"
+        ],
+        "properties": {
+          "from": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+\\.[a-z0-9_-]+$"
+          },
+          "to": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+\\.[a-z0-9_-]+$"
+          }
+        }
+      }
+    },
+    "realization_note": {
+      "type": "string"
+    }
+  }
+}

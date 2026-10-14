@@ -1,0 +1,26 @@
+/* workflow-board v3 (B3): architecture card types, boundary boxes, child-board summary pill. Loaded by core.js via a <link>. */
+.card[data-type=boundary]{pointer-events:none;border:2px dashed var(--tc);border-radius:14px;background:color-mix(in srgb,var(--tc) 5%,transparent);box-shadow:none;min-width:120px;min-height:80px}
+.card[data-type=boundary] .hd{pointer-events:auto;background:color-mix(in srgb,var(--tc) 85%,var(--bg));border-radius:11px 11px 0 0}
+.card[data-type=boundary][data-bkind=entity]{border-style:double;border-width:4px}
+.card[data-type=boundary][data-bkind=network]{border-style:dotted}
+.card[data-type=boundary][data-bkind=cloud]{border-radius:40px}
+.card[data-type=boundary] .bkind{position:absolute;right:10px;top:36px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}
+.card[data-type=component]{border-radius:6px}
+.card[data-type=datastore]{border-radius:10px 10px 24px 24px}
+.card[data-type=external]{border-style:dashed;border-radius:22px}
+.card[data-type=person]{border-radius:22px 22px 8px 8px}
+.card .rk{font-size:11px;color:var(--mut);padding:0 8px 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card .zm-pill{font-size:10px;line-height:1.3;margin:2px 8px 4px;padding:2px 7px;border:1px solid var(--sel);border-radius:10px;color:var(--sel);background:var(--panel);white-space:normal}
+.card .zm-pill.bad{border-color:#e5484d;color:#e5484d}
+/* workflow-board v4 (N1): note cards, approval/pin/on-fail badges. Container styling belongs to containers.js (N2). */
+.card[data-type=note]{width:auto;min-width:160px;max-width:320px;border-style:dashed;border-radius:4px 14px 4px 4px;background:color-mix(in srgb,var(--tc) 16%,var(--card))}
+.card[data-type=note] .row{display:none}
+.card[data-type=note] .v4-note{padding:6px 10px 8px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;color:var(--ink);max-height:240px;overflow:auto}
+.card[data-type=note] .v4-note.empty{color:var(--mut);font-style:italic}
+.v4-badges{position:absolute;left:4px;top:-11px;z-index:3;display:flex;gap:3px;flex-wrap:nowrap;pointer-events:none;white-space:nowrap}
+.v4-badges span{font:600 10px/1 system-ui,sans-serif;padding:2px 6px;border-radius:9px;border:1px solid var(--line);background:var(--panel);color:var(--ink)}
+.v4-badges .v4-appr{border-color:#D55E00;color:#D55E00}
+.v4-badges .v4-pin{border-color:#009E73;color:#009E73;border-style:dashed}
+.v4-badges .v4-fail{border-color:#CC79A7;color:#CC79A7}
+.card.v4-appr-gate{box-shadow:inset 0 0 0 1px #D55E00}
+.v4-palnote{border-left:4px solid #C9B037}

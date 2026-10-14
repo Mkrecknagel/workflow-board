@@ -1,0 +1,71 @@
+{
+  "schema": "workflow-board/module/v1",
+  "name": "save-photo-caption",
+  "version": 1,
+  "description": "Save the photo and its caption to the workspace folder (observe-only)",
+  "created_at": "2026-10-05T14:00:00-07:00",
+  "origin_board": "demo-board",
+  "exposed_ports": {
+    "in": [
+      "photo"
+    ],
+    "out": [
+      "saved"
+    ]
+  },
+  "cards": [
+    {
+      "id": "step-collect",
+      "type": "step",
+      "label": "collect photo + caption",
+      "immutable": false,
+      "enabled": true,
+      "execution_mode": "observe",
+      "ref": {
+        "kind": "task",
+        "sop": "content-sop"
+      },
+      "ports": {
+        "in": [
+          "photo"
+        ],
+        "out": [
+          "pair"
+        ]
+      },
+      "pos": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": "tool-save",
+      "type": "tool",
+      "label": "write pair to workspace (observe)",
+      "immutable": false,
+      "enabled": true,
+      "execution_mode": "observe",
+      "ref": {
+        "name": "Write"
+      },
+      "ports": {
+        "in": [
+          "pair"
+        ],
+        "out": [
+          "saved"
+        ]
+      },
+      "pos": {
+        "x": 220,
+        "y": 0
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "step-collect.pair",
+      "to": "tool-save.pair"
+    }
+  ]
+}

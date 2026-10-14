@@ -1,0 +1,38 @@
+{
+  "schema": "workflow-board/v1",
+  "board": "drill-missing",
+  "version": 1,
+  "execution_mode": "observe",
+  "saved_at": "2026-10-05T00:00:00Z",
+  "integrity_hash": null,
+  "cards": [
+    {
+      "id": "cmp-a",
+      "type": "component",
+      "label": "cmp-a",
+      "immutable": false,
+      "enabled": true,
+      "execution_mode": "observe",
+      "ref": {
+        "kind": "daemon"
+      },
+      "ports": {
+        "in": [
+          "uses"
+        ],
+        "out": [
+          "provides"
+        ]
+      },
+      "pos": {
+        "x": 0,
+        "y": 0
+      },
+      "drill": "no-such-board",
+      "fields": {
+        "teach": "fixture"
+      }
+    }
+  ],
+  "edges": []
+}

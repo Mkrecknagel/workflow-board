@@ -1,0 +1,37 @@
+__pycache__/
+.pytest_cache/
+*.bak*
+*.log
+runs/
+boards/.history/
+tickets/locks/
+.env*
+docs/personas/*/*.png
+.playwright-cli/
+dedup/drift-report.json
+
+# runtime / generated data (private boards, tickets, inventories, outputs)
+boards/*
+!boards/demo-board.json
+tickets/
+inventory/
+splits/
+dedup/
+proposals/
+registry-root/
+adapters/codex/out/*
+!adapters/codex/out/.gitkeep
+.coverage
+
+# screenshots
+*.png
+*.jpg
+*.jpeg
+shot*.png
+canvas/screenshot-*
+
+# misc
+.pytest_cache/
+__pycache__/
+.playwright-cli/
+node_modules/

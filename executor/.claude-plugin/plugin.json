@@ -1,0 +1,19 @@
+{
+  "name": "workflow-executor",
+  "version": "0.1.0",
+  "description": "Workflow-board executor: loads the deployed board, injects briefings and default models on agent spawns, denies on gate cards, writes telemetry, draws the BOARD band. Never intercepts tool calls.",
+  "userConfig": {
+    "root": {
+      "type": "string",
+      "title": "workflow-board root",
+      "description": "Absolute path of the workflow-board folder (tests point this at a temp copy).",
+      "default": ""
+    },
+    "validator": {
+      "type": "string",
+      "title": "validator path",
+      "description": "Path of validate.py (empty = <root>/validate.py).",
+      "default": ""
+    }
+  }
+}

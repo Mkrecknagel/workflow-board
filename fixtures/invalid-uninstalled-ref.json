@@ -1,0 +1,374 @@
+{
+  "schema": "workflow-board/v1",
+  "board": "example-governed-board",
+  "version": 1,
+  "execution_mode": "observe",
+  "saved_at": "2026-10-05T12:00:00-07:00",
+  "cards": [
+    {
+      "id": "trg-council",
+      "type": "trigger",
+      "label": "council: prompt",
+      "immutable": false,
+      "enabled": true,
+      "execution_mode": "observe",
+      "ref": {
+        "event": "prompt.submit",
+        "matcher": "^council:"
+      },
+      "ports": {
+        "in": [],
+        "out": [
+          "task"
+        ]
+      },
+      "pos": {
+        "x": 40,
+        "y": 120
+      }
+    },
+    {
+      "id": "in-charge",
+      "type": "input",
+      "label": "charge file",
+      "immutable": false,
+      "enabled": true,
+      "execution_mode": "observe",
+      "ref": {
+        "schema": "path",
+        "example": "council/<run>/00-CHARGE.md"
+      },
+      "ports": {
+        "in": [],
+        "out": [
+          "task"
+        ]
+      },
+      "pos": {
+        "x": 40,
+        "y": 260
+      }
+    },
+    {
+      "id": "skl-graph-loop",
+      "type": "skill",
+      "label": "graph-loop",
+      "immutable": false,
+      "enabled": true,
+      "execution_mode": "observe",
+      "ref": {
+        "name": "no-such-skill",
+        "path": "~/.claude/skills/graph-loop/SKILL.md"
+      },
+      "ports": {
+        "in": [
+          "task"
+        ],
+        "out": [
+          "nodes"
+        ]
+      },
+      "pos": {
+        "x": 260,
+        "y": 190
+      }
+    },
+    {
+      "id": "hook-agent-spawn-gate",
+      "type": "hook",
+      "label": "agent-spawn-gate (reference)",
+      "immutable": true,
+      "enabled": true,
+      "execution_mode": "observe",
+      "ref": {
+        "event": "PreToolUse",
+        "matcher": "Agent",
+        "file": "hooks/agent-spawn-gate.sh"
+      },
+      "ports": {
+        "in": [
+          "nodes"
+        ],
+        "out": [
+          "nodes"
+        ]
+      },
+      "pos": {
+        "x": 480,
+        "y": 190
+      }
+    },
+    {
+      "id": "gate-run-budget",
+      "type": "gate",
+      "label": "12 agents per run",
+      "immutable": true,
+      "enabled": true,
+      "execution_mode": "enforce",
+      "ref": {
+        "kind": "budget",
+        "rule": "spawns_this_run >= 12",
+        "verb": "deny"
+      },
+      "ports": {
+        "in": [
+          "nodes"
+        ],
+        "out": [
+          "nodes"
+        ]
+      },
+      "pos": {
+        "x": 480,
+        "y": 330
+      }
+    },
+    {
+      "id": "agent-fable",
+      "type": "agent",
+      "label": "fable seat",
+      "immutable": false,
+      "enabled": true,
+      "execution_mode": "enforce",
+      "ref": {
+        "route": "final_synthesis",
+        "seat": "fable",
+        "verb": "inject",
+        "model": "fable"
+      },
+      "ports": {
+        "in": [
+          "nodes"
+        ],
+        "out": [
+          "packet"
+        ]
+      },
+      "pos": {
+        "x": 700,
+        "y": 60
+      },
+      "contract": {
+        "briefing_template": "contracts/seat-fable.md",
+        "forbidden_paths": [
+          "logs/",
+          "/kb/",
+          ".private/"
+        ],
+        "token_ceiling": 200000,
+        "max_tool_calls": 60,
+        "timeout_s": 1800
+      }
+    },
+    {
+      "id": "agent-claude",
+      "type": "agent",
+      "label": "claude seat",
+      "immutable": false,
+      "enabled": true,
+      "execution_mode": "enforce",
+      "ref": {
+        "route": "research",
+        "seat": "claude",
+        "verb": "inject",
+        "model": "sonnet",
+        "subagent_type": "general-purpose"
+      },
+      "ports": {
+        "in": [
+          "nodes"
+        ],
+        "out": [
+          "packet"
+        ]
+      },
+      "pos": {
+        "x": 700,
+        "y": 200
+      },
+      "contract": {
+        "briefing_template": "contracts/seat-claude.md",
+        "forbidden_paths": [
+          "logs/",
+          "/kb/",
+          ".private/"
+        ],
+        "token_ceiling": 200000,
+        "max_tool_calls": 60,
+        "timeout_s": 1800
+      }
+    },
+    {
+      "id": "agent-gemini",
+      "type": "agent",
+      "label": "gemini seat",
+      "immutable": false,
+      "enabled": true,
+      "execution_mode": "enforce",
+      "ref": {
+        "route": "long_context_digest",
+        "seat": "gemini",
+        "verb": "inject"
+      },
+      "ports": {
+        "in": [
+          "nodes"
+        ],
+        "out": [
+          "packet"
+        ]
+      },
+      "pos": {
+        "x": 700,
+        "y": 340
+      },
+      "contract": {
+        "briefing_template": "contracts/seat-gemini.md",
+        "forbidden_paths": [
+          "logs/",
+          "/kb/",
+          ".private/"
+        ],
+        "token_ceiling": 200000,
+        "max_tool_calls": 60,
+        "timeout_s": 1800
+      }
+    },
+    {
+      "id": "agent-codex",
+      "type": "agent",
+      "label": "codex seat",
+      "immutable": false,
+      "enabled": true,
+      "execution_mode": "enforce",
+      "ref": {
+        "route": "nontrivial_code",
+        "seat": "codex",
+        "verb": "inject"
+      },
+      "ports": {
+        "in": [
+          "nodes"
+        ],
+        "out": [
+          "packet"
+        ]
+      },
+      "pos": {
+        "x": 700,
+        "y": 480
+      },
+      "contract": {
+        "briefing_template": "contracts/seat-codex.md",
+        "forbidden_paths": [
+          "logs/",
+          "/kb/",
+          ".private/"
+        ],
+        "token_ceiling": 200000,
+        "max_tool_calls": 60,
+        "timeout_s": 1800
+      }
+    },
+    {
+      "id": "out-synthesis",
+      "type": "output",
+      "label": "03-SYNTHESIS.md",
+      "immutable": false,
+      "enabled": true,
+      "execution_mode": "observe",
+      "ref": {
+        "schema": "path",
+        "example": "council/<run>/03-SYNTHESIS.md"
+      },
+      "ports": {
+        "in": [
+          "packet"
+        ],
+        "out": [
+          "verdict"
+        ]
+      },
+      "pos": {
+        "x": 920,
+        "y": 260
+      }
+    },
+    {
+      "id": "tool-discord-reply",
+      "type": "tool",
+      "label": "discord reply",
+      "immutable": false,
+      "enabled": true,
+      "execution_mode": "observe",
+      "ref": {
+        "name": "mcp__plugin_discord_discord__reply"
+      },
+      "ports": {
+        "in": [
+          "verdict"
+        ],
+        "out": []
+      },
+      "pos": {
+        "x": 1140,
+        "y": 260
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "trg-council.task",
+      "to": "skl-graph-loop.task"
+    },
+    {
+      "from": "in-charge.task",
+      "to": "skl-graph-loop.task"
+    },
+    {
+      "from": "skl-graph-loop.nodes",
+      "to": "hook-agent-spawn-gate.nodes"
+    },
+    {
+      "from": "hook-agent-spawn-gate.nodes",
+      "to": "gate-run-budget.nodes"
+    },
+    {
+      "from": "gate-run-budget.nodes",
+      "to": "agent-fable.nodes"
+    },
+    {
+      "from": "agent-fable.packet",
+      "to": "out-synthesis.packet"
+    },
+    {
+      "from": "gate-run-budget.nodes",
+      "to": "agent-claude.nodes"
+    },
+    {
+      "from": "agent-claude.packet",
+      "to": "out-synthesis.packet"
+    },
+    {
+      "from": "gate-run-budget.nodes",
+      "to": "agent-gemini.nodes"
+    },
+    {
+      "from": "agent-gemini.packet",
+      "to": "out-synthesis.packet"
+    },
+    {
+      "from": "gate-run-budget.nodes",
+      "to": "agent-codex.nodes"
+    },
+    {
+      "from": "agent-codex.packet",
+      "to": "out-synthesis.packet"
+    },
+    {
+      "from": "out-synthesis.verdict",
+      "to": "tool-discord-reply.verdict"
+    }
+  ],
+  "integrity_hash": null
+}

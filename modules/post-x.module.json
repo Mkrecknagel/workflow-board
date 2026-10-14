@@ -1,0 +1,71 @@
+{
+  "schema": "workflow-board/module/v1",
+  "name": "post-x",
+  "version": 1,
+  "description": "Stage a X post draft; never posts - the owner posts manually",
+  "created_at": "2026-10-05T14:00:00-07:00",
+  "origin_board": "demo-board",
+  "exposed_ports": {
+    "in": [
+      "photo"
+    ],
+    "out": [
+      "staged"
+    ]
+  },
+  "cards": [
+    {
+      "id": "step-draft",
+      "type": "step",
+      "label": "draft X title/text",
+      "immutable": false,
+      "enabled": true,
+      "execution_mode": "observe",
+      "ref": {
+        "kind": "task",
+        "sop": "content-sop"
+      },
+      "ports": {
+        "in": [
+          "photo"
+        ],
+        "out": [
+          "draft"
+        ]
+      },
+      "pos": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": "tool-stage",
+      "type": "tool",
+      "label": "stage X draft file (observe, no post)",
+      "immutable": false,
+      "enabled": true,
+      "execution_mode": "observe",
+      "ref": {
+        "name": "Write"
+      },
+      "ports": {
+        "in": [
+          "draft"
+        ],
+        "out": [
+          "staged"
+        ]
+      },
+      "pos": {
+        "x": 220,
+        "y": 0
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "step-draft.draft",
+      "to": "tool-stage.draft"
+    }
+  ]
+}

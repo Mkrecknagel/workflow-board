@@ -1,0 +1,78 @@
+{
+  "schema": "workflow-board/module/v1",
+  "name": "loop-hitl",
+  "version": 1,
+  "description": "Human-in-the-loop pattern: a draft step goes to a human approval gate; a rejection loops back to the draft step. Pre-arranged: forward chain left to right, return lane routed below.",
+  "created_at": "2026-10-12T16:00:00-07:00",
+  "origin_board": "library",
+  "exposed_ports": {
+    "in": [
+      "in"
+    ],
+    "out": [
+      "approved"
+    ]
+  },
+  "cards": [
+    {
+      "id": "draft",
+      "type": "step",
+      "label": "draft (replaces on reject)",
+      "immutable": false,
+      "enabled": true,
+      "execution_mode": "observe",
+      "ref": {
+        "kind": "task"
+      },
+      "ports": {
+        "in": [
+          "in",
+          "replan"
+        ],
+        "out": [
+          "out"
+        ]
+      },
+      "pos": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": "gate-hitl",
+      "type": "gate",
+      "label": "human approval (HITL)",
+      "immutable": false,
+      "enabled": true,
+      "execution_mode": "observe",
+      "ref": {
+        "kind": "rule",
+        "rule": "a human approves before anything leaves; reject loops back to the draft",
+        "verb": "deny"
+      },
+      "ports": {
+        "in": [
+          "in"
+        ],
+        "out": [
+          "approved",
+          "rejected"
+        ]
+      },
+      "pos": {
+        "x": 288,
+        "y": 0
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "draft.out",
+      "to": "gate-hitl.in"
+    },
+    {
+      "from": "gate-hitl.rejected",
+      "to": "draft.replan"
+    }
+  ]
+}
