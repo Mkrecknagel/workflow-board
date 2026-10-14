@@ -291,6 +291,9 @@ def scan(roots=None):
         _scan_tasks(items)
     ts = _now()
     S.unique_ids(items)
+    for it in items:  # every item is representable: anything without a dedicated card type gets a resource card
+        if it.get("card_template") is None and it["kind"] != "module":
+            it["card_template"] = S.resource_template(it)
     for it in items:
         it.setdefault("harness", it.get("source_agent"))
         it["scanned_at"] = ts

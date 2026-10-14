@@ -98,6 +98,16 @@ def item(harness, kind, name, desc, path, template=None, subkind=None, extra=Non
     return it
 
 
+def resource_template(it):
+    """Fallback card for an item with no dedicated card type (plugins, Codex hooks/agents, scheduled tasks, future kinds).
+    Structural and observe-only: it shows the item on the board and is never executed."""
+    ref = {"kind": it.get("kind") or "other", "name": it.get("name") or "item", "harness": it.get("harness") or it.get("source_agent") or "unknown"}
+    if it.get("path"):
+        ref["path"] = it["path"]
+    return {"type": "resource", "label": ref["name"], "execution_mode": "observe", "ref": ref,
+            "ports": {"in": ["in"], "out": ["out"]}, "fields": {"harness": ref["harness"]}}
+
+
 def skill_template(name, path, harness):
     return {"type": "skill", "label": name, "execution_mode": "observe", "ref": {"name": name, "path": _norm(path)},
             "ports": {"in": ["task"], "out": ["result"]}, "fields": {"harness": harness}}

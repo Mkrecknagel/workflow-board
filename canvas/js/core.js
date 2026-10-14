@@ -1,20 +1,20 @@
 "use strict";
 import {routeAll} from "./router.js";import {badge} from "./readability.js";
 /* workflow-board canvas core (module). v2 restructure: state, render, drag, edges, view, insertSubgraph. */
-const TYPES={trigger:["⚡","event"],input:["⇥","schema"],skill:["✦","name"],hook:["⚓","event"],tool:["🔧","name"],agent:["🤖","seat"],gate:["⛨","rule"],output:["⇤","schema"],step:["▸","sop"],boundary:["▭","kind"],component:["◆","kind"],datastore:["🛢","kind"],external:["☁","vendor"],person:["👤","role"]};
+const TYPES={trigger:["⚡","event"],input:["⇥","schema"],skill:["✦","name"],hook:["⚓","event"],tool:["🔧","name"],agent:["🤖","seat"],gate:["⛨","rule"],output:["⇤","schema"],step:["▸","sop"],boundary:["▭","kind"],component:["◆","kind"],datastore:["🛢","kind"],external:["☁","vendor"],person:["👤","role"],resource:["◇","kind"]}; /* resource: fallback card for any library item without a dedicated type */
 const V3=["boundary","component","datastore","external","person"]; /* v3 architecture types: structural, no telemetry */
 const V3PORTS={component:{in:["uses"],out:["provides"]},datastore:{in:["write"],out:["read"]},external:{in:["call"],out:["event"]},boundary:{in:[],out:[]},person:{in:[],out:[]}};
 const V3DEF={boundary:{kind:"machine"},component:{kind:"service"},datastore:{kind:"file",path:"TODO"},external:{vendor:"TODO",protocol:"TODO"},person:{role:"TODO"}};
-const REQ={trigger:["event"],input:["schema"],skill:["name"],hook:["event","file"],gate:["kind","rule","verb"],agent:["route","seat","verb"],output:["schema"],tool:["name"],step:[],boundary:["kind"],component:["kind"],datastore:["kind","path"],external:["vendor","protocol"],person:["role"]};
+const REQ={trigger:["event"],input:["schema"],skill:["name"],hook:["event","file"],gate:["kind","rule","verb"],agent:["route","seat","verb"],output:["schema"],tool:["name"],step:[],boundary:["kind"],component:["kind"],datastore:["kind","path"],external:["vendor","protocol"],person:["role"],resource:["kind","name"]};
 const CW=192,HH=30,RH=20,STALE_MS=24*3600*1000;
 const GRID=8; /* single grid constant: CSS background size (applyView) and every snap use it */
 const snap=n=>Math.round(n/GRID)*GRID+0;
-const TYPE_COLOR={trigger:"#E69F00",input:"#56B4E9",skill:"#CC79A7",hook:"#F0E442",tool:"#A67C52",agent:"#0072B2",gate:"#D55E00",output:"#009E73",step:"#7A8396",boundary:"#6B7385",component:"#44AA99",datastore:"#AA4499",external:"#999933",person:"#882255"}; /* Okabe-Ito based; icon + label always accompany colour */
+const TYPE_COLOR={trigger:"#E69F00",input:"#56B4E9",skill:"#CC79A7",hook:"#F0E442",tool:"#A67C52",agent:"#0072B2",gate:"#D55E00",output:"#009E73",step:"#7A8396",boundary:"#6B7385",component:"#44AA99",datastore:"#AA4499",external:"#999933",person:"#882255",resource:"#5F6B7A"}; /* Okabe-Ito based; icon + label always accompany colour */
 const RESERVED=["id","type","ref","pos","immutable","execution_mode","enabled","style","fields"];
 const HEX=/^#[0-9a-fA-F]{6}$/;
 function textOn(hex){const n=parseInt(hex.slice(1),16),f=v=>{v/=255;return v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4)};
   const L=.2126*f(n>>16&255)+.7152*f(n>>8&255)+.0722*f(n&255);return(L+.05)/.05>=1.05/(L+.05)?"#111":"#fff"}
-const cardColor=c=>(c.style&&HEX.test(c.style.color||"")&&c.style.color)||TYPE_COLOR[c.type];
+const cardColor=c=>(c.style&&HEX.test(c.style.color||"")&&c.style.color)||TYPE_COLOR[c.type]||TYPE_COLOR.resource;
 const groupColor=g=>{const s=board&&board.group_styles&&board.group_styles[g];return s&&HEX.test(s.color||"")?s.color:null};
 let board=null,boardName=null,sel=new Set(),selEdge=null,view={x:40,y:30,k:1},seen={},drag=null;
 const $=id=>document.getElementById(id);
@@ -34,7 +34,7 @@ async function openBoard(n){if(window.wbAutosave&&board&&boardName)window.wbAuto
   const r=await api("/board/"+n);if(!r.ok){say("load failed: "+((r.j&&r.j.error)||r.status),"err");return}
   board=r.j;boardName=n;if(window.wbAutosave)window.wbAutosave.opened(n,board);sel=new Set();selEdge=null;$("picker").value=n;if(window.wbTickets)window.wbTickets.boardOpened(n);await loadTelemetry();render();renderInspector();fitView();say("loaded "+n)}
 async function loadTelemetry(){const r=await api("/telemetry");seen=(r.ok&&r.j&&r.j.last_seen)||{}}
-function isGrey(c){if(V3.includes(c.type))return false;const t=seen[c.id];if(!t)return true;const ms=Date.parse(t);return isNaN(ms)||Date.now()-ms>STALE_MS}
+function isGrey(c){if(V3.includes(c.type)||c.type==="resource")return false;const t=seen[c.id];if(!t)return true;const ms=Date.parse(t);return isNaN(ms)||Date.now()-ms>STALE_MS}
 
 function portY(c,side,name){const i=c.ports[side].indexOf(name);return c.pos.y+HH+6+RH*Math.max(i,0)+RH/2}
 /* port geometry is MEASURED from the rendered .pt rows (the dot is CSS-centred on the row edge via --pd), cached per card as offsets from card pos in world px; zoom-independent. */
@@ -67,7 +67,7 @@ function render(){
     const d=E("div","card t-"+c.type+(sel.has(c.id)?" sel":"")+(isGrey(c)?" grey":"")+(c.enabled?"":" off"));d.dataset.id=c.id;d.dataset.type=c.type;if(c.type==="boundary"){d.dataset.bkind=(c.ref&&c.ref.kind)||"";if(c.size){d.style.width=c.size.w+"px";d.style.height=c.size.h+"px"}}
     d.style.left=c.pos.x+"px";d.style.top=c.pos.y+"px";
     const col=cardColor(c);d.style.setProperty("--tc",col);d.style.setProperty("--tx",textOn(col));
-    const h=E("div","hd");h.appendChild(E("i",null,TYPES[c.type][0]));h.appendChild(E("span",null,c.label));
+    const h=E("div","hd");h.appendChild(E("i",null,(TYPES[c.type]||TYPES.resource)[0]));h.appendChild(E("span",null,c.label));
     if(c.immutable){const l=E("small","lock","🔒");l.title="immutable";h.appendChild(l)}
     d.addEventListener("pointerdown",ev=>startDragCard(ev,c));d.addEventListener("pointerenter",()=>{hov=c.id;updateHL()});d.addEventListener("pointerleave",()=>{if(hov===c.id){hov=null;updateHL()}});d.appendChild(h);
     if(c.type==="boundary"){const kd=E("div","bkind",(c.ref&&c.ref.kind)||"boundary");d.appendChild(kd);if(window.wbTickets)window.wbTickets.decorate(d,c);root.appendChild(d);return}
@@ -216,6 +216,7 @@ function addCard(type){if(!board){say("open a board first","err");return}
   let n=1,id;do{id=type.slice(0,4)+"-new-"+(n++)}while(cardById(id));
   const refv=$("pref").value.trim();const ref={};
   REQ[type].forEach((k,i)=>{ref[k]=V3.includes(type)?((i===0&&refv&&k!=="kind")?refv:V3DEF[type][k]):(i===0&&refv)?refv:(k==="verb"?"inject":(k==="kind"?"budget":(k==="seat"?"claude":"TODO")))});
+  if(type==="resource"){ref.kind="other";ref.name=refv||"TODO"}
   const ports=V3.includes(type)?JSON.parse(JSON.stringify(V3PORTS[type])):{in:(type==="trigger"||type==="input")?[]:["in"],out:type==="output"?[]:["out"]};
   const r=$("vp").getBoundingClientRect();
   const c={id:id,type:type,label:refv||id,immutable:false,enabled:true,execution_mode:"observe",ref:ref,ports:ports,pos:{x:snap((r.width/2-view.x)/view.k-95),y:snap((r.height/2-view.y)/view.k-40)}};

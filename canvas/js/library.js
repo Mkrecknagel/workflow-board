@@ -93,7 +93,9 @@ function addItem(it) {
 function resolves(c) {
   const n = c.ref && c.ref.name; if (!n) return true;
   if (c.ref.kind === "proposed") return true;
-  return items.some(i => i.name === n && i.installed !== false && (i.kind === c.type || c.type === "skill" && i.kind === "skill"));
+  return items.some(i => i.installed !== false && (
+    (i.name === n && (i.kind === c.type || c.type === "skill" && i.kind === "skill")) ||
+    (i.card_template && i.card_template.type === c.type && i.card_template.ref && i.card_template.ref.name === n)));
 }
 
 function badge() {
