@@ -294,11 +294,25 @@ function hideDep(){const d=$("dep");if(d)d.style.display="none"}
 document.addEventListener("pointerdown",e=>{const d=$("dep");if(!d||d.style.display!=="block")return;if(d.contains(e.target)||e.target.closest&&e.target.closest("#bDeploy,#bDeployHelp"))return;hideDep()},true);
 document.addEventListener("keydown",e=>{if(e.key==="Escape")hideDep()},true);
 function deployRequest(){if(!board)return;const d=$("dep");d.innerHTML="";
-  d.appendChild(E("div",null,"Deploy turns this board into agent files (a SKILL.md your agent runs from first station to last). Your agent files stay the source of truth; this page never edits them."));
-  const na=E("div",null,"Generating files is not available in this version yet.");na.style.cssText="margin-top:6px;font-weight:600";d.appendChild(na);
-  const sm=E("div",null,"Legacy Claude Code executor only (reads the board at runtime):");sm.style.cssText="font-size:11px;color:var(--mut);margin-top:8px";d.appendChild(sm);
-  d.appendChild(E("code",null,"/board deploy "+boardName));const x=E("button",null,"Close");x.onclick=hideDep;d.appendChild(x);showDep(d);
-  say("deploy: file generation not available yet")}
+  d.appendChild(E("div",null,"Deploy turns this board into agent files: a SKILL.md your agent runs from the first station to the last, plus a line.json manifest. Your agent files stay the source of truth. Nothing is written until you approve the diff, and existing files are never overwritten."));
+  const row=E("div");row.style.cssText="margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap";
+  const tl=E("label",null,"Skills folder");const ti=E("input");ti.placeholder="server default (WB_DEPLOY_TARGET)";ti.value=localStorage.getItem("wb.deployTarget")||"";ti.style.width="240px";
+  const nl=E("label",null,"Skill name");const ni=E("input");ni.value=boardName;ni.style.width="160px";
+  const pb=E("button",null,"Propose");row.append(tl,ti,nl,ni,pb);d.appendChild(row);
+  const out=E("pre");out.style.cssText="max-height:40vh;overflow:auto;font:11px ui-monospace,monospace;white-space:pre-wrap;margin-top:8px;display:none";d.appendChild(out);
+  const ab=E("button",null,"Approve and create files");ab.style.display="none";ab.className="pri";
+  const x=E("button",null,"Close");x.onclick=hideDep;const br=E("div");br.style.marginTop="8px";br.append(ab,x);d.appendChild(br);
+  let pid=null;
+  pb.onclick=async()=>{if($("bSave").classList.contains("wb-behaviour-dirty")){out.style.display="block";out.textContent="Save the board first: Deploy compiles the saved board.";return}
+    localStorage.setItem("wb.deployTarget",ti.value.trim());out.style.display="block";out.textContent="compiling...";ab.style.display="none";
+    const r=await api("/deploy/propose",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({board:boardName,target:ti.value.trim()||null,name:ni.value.trim()||null})});
+    if(!r.ok){out.textContent="not proposed: "+((r.j&&r.j.error)||r.status);return}
+    out.textContent=r.j.diff;pid=r.j.plan.id;if(r.j.plan.state==="proposed"){ab.style.display="";say("proposal "+pid+" ready - review the diff, then approve")}else say("proposal has conflicts - nothing can be written","err")};
+  ab.onclick=async()=>{if(!pid)return;if(!confirm("Create these files in "+(ti.value.trim()||"the default skills folder")+"?"))return;
+    const r=await api("/deploy/apply",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:pid,approve:true})});
+    if(r.ok){ab.style.display="none";out.textContent+="\n\nApplied: "+r.j.plan.files.length+" file(s) created in "+r.j.plan.target;say("deployed "+pid,"ok")}
+    else{out.textContent+="\n\nNot applied: "+((r.j&&r.j.error)||r.status);say("deploy refused","err")}};
+  showDep(d);ti.focus()}
 
 /* ---- global pointer / keys ---- */
 const ptrs=new Map();let pinch=null;

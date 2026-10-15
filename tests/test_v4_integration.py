@@ -67,7 +67,7 @@ def test_live_serves_v4_routes():
         except urllib.error.HTTPError as e:
             code = e.code
         assert code in (200, 204), (path, code)
-    PENDING_RESTART = {"minimap"}  # F1: modules added after the live server last started (it is never restarted by tests); the temp-server test below still requires them
+    PENDING_RESTART = {"minimap", "contracts"}  # F1: modules added after the live server last started (it is never restarted by tests); the temp-server test below still requires them
     assert set(V4_MODULES) - PENDING_RESTART <= set(_live("/v4/modules")["modules"])
 
 

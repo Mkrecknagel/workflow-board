@@ -316,6 +316,32 @@ def readability_of(name):
     return d
 
 
+LOCAL_HOSTS = {"127.0.0.1", "localhost", "[::1]"}
+
+
+def request_is_local(headers, port):
+    """Same-machine guard for every request. The server binds 127.0.0.1, but a page on another site can still send
+    requests to it from your browser, and DNS rebinding can make such a page same-origin. So:
+      - Host must name this loopback listener (127.0.0.1 / localhost / [::1] on this port): defeats DNS rebinding.
+      - For writes, Origin, when the browser sends it, must be that same listener: defeats cross-site form/fetch writes.
+    Non-browser clients (curl, the CLI tools, tests) send no Origin and a loopback Host, so they pass."""
+    host = (headers.get("Host") or "").strip().lower()
+    name, _, hp = host.rpartition(":") if not host.endswith("]") else (host, "", "")
+    if not name:
+        name, hp = host, ""
+    if name not in LOCAL_HOSTS or (hp and hp != str(port)):
+        return False, f"Host {host!r} is not this local server"
+    origin = (headers.get("Origin") or "").strip().lower()
+    if origin and origin != "null":
+        from urllib.parse import urlsplit
+        u = urlsplit(origin)
+        if (u.hostname not in ("127.0.0.1", "localhost", "::1")) or (u.port or 80) != port:
+            return False, f"cross-origin request from {origin!r} refused"
+    elif origin == "null":
+        return False, "opaque-origin request refused"
+    return True, ""
+
+
 class H(BaseHTTPRequestHandler):
     def _send(self, code, body, ctype="application/json"):
         b = body if isinstance(body, bytes) else body.encode("utf-8")
@@ -345,6 +371,9 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, fh.read(), MIME.get(ext) or mimetypes.guess_type(f)[0] or "application/octet-stream")
 
     def do_GET(self):
+        ok, why = request_is_local(self.headers, self.server.server_address[1])
+        if not ok:
+            return self._err(403, why)
         u = urlparse(self.path)
         p = u.path
         if p.startswith("/canvas/"):
@@ -411,8 +440,44 @@ class H(BaseHTTPRequestHandler):
         except TS.TicketError as e:
             return self._err(TCODE.get(e.code, 400), str(e))
 
+    def _deploy(self, up):
+        """POST /deploy/propose {board, target, name?} -> plan + diff (stages files, writes nothing in target).
+        POST /deploy/apply {id, approve: true} -> creates the staged NEW files in target. Owner only; same-machine only
+        (request_is_local). The page never applies without the owner clicking Approve on the shown diff."""
+        if self._actor() != "owner":
+            return self._err(403, "owner only")
+        n = int(self.headers.get("Content-Length") or 0)
+        if n <= 0 or n > MAX:
+            return self._err(400, "bad body size")
+        try:
+            body = json.loads(self.rfile.read(n).decode("utf-8"))
+        except ValueError:
+            return self._err(422, "unparseable JSON")
+        import deploy as D
+        try:
+            if up == "/deploy/propose":
+                tgt = body.get("target") or os.environ.get("WB_DEPLOY_TARGET") or ""
+                if not tgt:
+                    return self._err(422, "no target folder: pass target or set WB_DEPLOY_TARGET (for example ~/.agents/skills)")
+                plan, diff = D.propose(str(body.get("board") or ""), tgt, body.get("name") or None)
+                return self._send(200, json.dumps({"plan": plan, "diff": diff}))
+            if up == "/deploy/apply":
+                plan = D.apply(str(body.get("id") or ""), approve=body.get("approve") is True)
+                return self._send(200, json.dumps({"plan": plan}))
+        except SystemExit as e:  # deploy.py reports refusals as SystemExit(message)
+            return self._err(409, str(e))
+        except (ValueError, V.Invalid) as e:
+            return self._err(422, str(e))
+        return self._err(404, "not found")
+
     def do_POST(self):
-        tm = TNAME.match(self.path.split("?")[0])
+        ok, why = request_is_local(self.headers, self.server.server_address[1])
+        if not ok:
+            return self._err(403, why)
+        up = self.path.split("?")[0]
+        if up.startswith("/deploy/"):
+            return self._deploy(up)
+        tm = TNAME.match(up)
         if not tm or tm.group(2) or tm.group(1) == "pending":
             return self._err(404, "not found")
         n = int(self.headers.get("Content-Length") or 0)
@@ -449,6 +514,9 @@ class H(BaseHTTPRequestHandler):
         return self._tickets(ops[op])
 
     def do_PUT(self):
+        ok, why = request_is_local(self.headers, self.server.server_address[1])
+        if not ok:
+            return self._err(403, why)
         up = self.path.split("?")[0]
         if up.startswith("/splits"):
             return self._err(403, "splits are written by a human or agent turn, never by the server")
@@ -501,6 +569,9 @@ class H(BaseHTTPRequestHandler):
         self._send(200, json.dumps(out))
 
     def do_PATCH(self):
+        ok, why = request_is_local(self.headers, self.server.server_address[1])
+        if not ok:
+            return self._err(403, why)
         m = VNAME.match(self.path.split("?")[0])
         if not m or m.group(1) == "active":
             return self._err(404, "not found")
