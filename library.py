@@ -75,7 +75,7 @@ def module_touches(mod):
 
 
 def default_roots():
-    return {"claude": os.path.join(HOME, ".claude"), "codex": os.environ.get("WB_CODEX_DIR") or os.path.join(HOME, ".Codex"),
+    return {"claude": os.environ.get("WB_CLAUDE_DIR") or os.path.join(HOME, ".claude"), "codex": os.environ.get("WB_CODEX_DIR") or os.path.join(HOME, ".Codex"),
             "kiro": os.environ.get("WB_KIRO_DIR") or os.path.join(HOME, ".kiro"),
             "agents": os.environ.get("WB_AGENTS_DIR") or os.path.join(HOME, ".agents"), "_mcp_json": os.path.join(HOME, ".claude.json"), "_tasks": True}
 

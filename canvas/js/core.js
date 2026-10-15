@@ -34,7 +34,7 @@ async function openBoard(n){if(window.wbAutosave&&board&&boardName)window.wbAuto
   const r=await api("/board/"+n);if(!r.ok){say("load failed: "+((r.j&&r.j.error)||r.status),"err");return}
   board=r.j;boardName=n;if(window.wbAutosave)window.wbAutosave.opened(n,board);sel=new Set();selEdge=null;$("picker").value=n;if(window.wbTickets)window.wbTickets.boardOpened(n);await loadTelemetry();render();renderInspector();fitView();say("loaded "+n)}
 async function loadTelemetry(){const r=await api("/telemetry");seen=(r.ok&&r.j&&r.j.last_seen)||{}}
-function isGrey(c){if(V3.includes(c.type)||c.type==="resource")return false;const t=seen[c.id];if(!t)return true;const ms=Date.parse(t);return isNaN(ms)||Date.now()-ms>STALE_MS}
+function isGrey(c){if(V3.includes(c.type)||c.type==="resource"||!Object.keys(seen).length)return false;const t=seen[c.id];if(!t)return true;const ms=Date.parse(t);return isNaN(ms)||Date.now()-ms>STALE_MS}
 
 function portY(c,side,name){const i=c.ports[side].indexOf(name);return c.pos.y+HH+6+RH*Math.max(i,0)+RH/2}
 /* port geometry is MEASURED from the rendered .pt rows (the dot is CSS-centred on the row edge via --pd), cached per card as offsets from card pos in world px; zoom-independent. */
@@ -293,10 +293,12 @@ function showDep(d){const lz=$("zm-lenses");const lb=lz?lz.getBoundingClientRect
 function hideDep(){const d=$("dep");if(d)d.style.display="none"}
 document.addEventListener("pointerdown",e=>{const d=$("dep");if(!d||d.style.display!=="block")return;if(d.contains(e.target)||e.target.closest&&e.target.closest("#bDeploy,#bDeployHelp"))return;hideDep()},true);
 document.addEventListener("keydown",e=>{if(e.key==="Escape")hideDep()},true);
-function deployRequest(){if(!board)return;const d=$("dep");d.innerHTML="";d.appendChild(E("div",null,"Ask the agent to deploy this board — it will start following these rules. Save first if you changed any behaviour."));
-  const sm=E("div",null,"Command, if you need it:");sm.style.cssText="font-size:11px;color:var(--mut);margin-top:6px";d.appendChild(sm);
+function deployRequest(){if(!board)return;const d=$("dep");d.innerHTML="";
+  d.appendChild(E("div",null,"Deploy turns this board into agent files (a SKILL.md your agent runs from first station to last). Your agent files stay the source of truth; this page never edits them."));
+  const na=E("div",null,"Generating files is not available in this version yet.");na.style.cssText="margin-top:6px;font-weight:600";d.appendChild(na);
+  const sm=E("div",null,"Legacy Claude Code executor only (reads the board at runtime):");sm.style.cssText="font-size:11px;color:var(--mut);margin-top:8px";d.appendChild(sm);
   d.appendChild(E("code",null,"/board deploy "+boardName));const x=E("button",null,"Close");x.onclick=hideDep;d.appendChild(x);showDep(d);
-  say("deploy requested - ask the agent to deploy; this page never writes active.json")}
+  say("deploy: file generation not available yet")}
 
 /* ---- global pointer / keys ---- */
 const ptrs=new Map();let pinch=null;
@@ -320,7 +322,7 @@ $("vp").addEventListener("wheel",ev=>{ev.preventDefault();const r=$("vp").getBou
   const k=Math.max(.02,Math.min(2.5,view.k*(ev.deltaY<0?1.1:1/1.1)));view.x=mx-(mx-view.x)*(k/view.k);view.y=my-(my-view.y)*(k/view.k);view.k=k;applyView()},{passive:false});
 window.addEventListener("keydown",ev=>{const t=ev.target.tagName;if(t==="INPUT"||t==="TEXTAREA"||t==="SELECT")return;if(ev.key==="Delete"||ev.key==="Backspace"){ev.preventDefault();deleteSelected()}});
 window.addEventListener("keydown",ev=>{const t=ev.target.tagName;if(t==="INPUT"||t==="TEXTAREA"||t==="SELECT")return;if((ev.ctrlKey||ev.metaKey)&&!ev.shiftKey&&(ev.key==="z"||ev.key==="Z")&&lastDel){ev.preventDefault();undoDelete()}});
-$("bDeployHelp").onclick=()=>{const d=$("dep");d.innerHTML="";d.appendChild(E("div",null,"Deploy = the agent starts following this board's behaviour."));d.appendChild(E("div",null,"Visual changes (moving, colours, notes) autosave and never need a deploy. Behaviour changes: Save, then the owner runs the deploy command."));const x=E("button",null,"Close");x.onclick=hideDep;d.appendChild(x);showDep(d)};
+$("bDeployHelp").onclick=()=>{const d=$("dep");d.innerHTML="";d.appendChild(E("div",null,"Deploy = your agent builds the files this board describes (skills, SOP), then runs from those files."));d.appendChild(E("div",null,"Visual changes (moving, colours, notes) autosave and never need a deploy. Behaviour changes: Save, then Deploy."));const x=E("button",null,"Close");x.onclick=hideDep;d.appendChild(x);showDep(d)};
 $("bSave").onclick=saveBoard;$("bDeploy").onclick=deployRequest;$("bFit").onclick=fitView;$("picker").onchange=e=>openBoard(e.target.value);
 buildPalette();loadBoards().catch(e=>say("init failed: "+e,"err"));
 

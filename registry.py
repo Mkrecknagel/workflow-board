@@ -6,6 +6,8 @@ Boards come from two places:
   (b) INSTANCE boards registered in a project's project.json as a source:
         sources.artifacts[] = {"type": "workflow-board", "board": "<name>", "url": "<absolute path to the board json>"}
       scanned from <root>/<projects>/**/project.json (depth <= 3).
+  (c) every *.json in the folders listed in env WB_BOARD_DIRS (os.pathsep separated), for generated boards that
+      must live outside the engine (wb_init.py writes there by default).
 Root = env WORKFLOW_BOARD_ROOT (alias BOARD_REGISTRY_ROOT, used by tests), else a `registry-root` folder next to this file.
 The registry only READS project.json files; it never writes them. Problems (duplicate name, missing registered
 file, unreadable project.json) are returned as error strings, never raised.
@@ -15,6 +17,20 @@ import os
 
 DEFAULT_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "registry-root")
 MAX_DEPTH = 3
+
+
+def board_dirs():
+    """Extra board folders from WB_BOARD_DIRS, in order. Missing folders are skipped."""
+    return [d for d in (os.environ.get("WB_BOARD_DIRS") or "").split(os.pathsep) if d and os.path.isdir(d)]
+
+
+def _dir_boards(d):
+    out = {}
+    for fn in sorted(os.listdir(d)):
+        p = os.path.join(d, fn)
+        if fn.endswith(".json") and fn != "active.json" and not fn.startswith(".") and os.path.isfile(p):
+            out[fn[:-5]] = p
+    return out
 
 
 def portfolio_root():
@@ -75,7 +91,14 @@ def scan(boards_dir, root=None):
             p = os.path.join(boards_dir, fn)
             if fn.endswith(".json") and fn != "active.json" and os.path.isfile(p):
                 paths[fn[:-5]] = p
-    reg, errors = registered(root)
+    for d in board_dirs():
+        for n, p in _dir_boards(d).items():
+            if n in paths:
+                errors.append(f"duplicate board name '{n}': {p} (WB_BOARD_DIRS) conflicts with {paths[n]}; keeping the first")
+                continue
+            paths[n] = p
+    reg, errors2 = registered(root)
+    errors += errors2
     for r in reg:
         n, p = r["board"], r["path"]
         if n in paths:
@@ -101,6 +124,10 @@ def resolve(name, boards_dir, root=None):
     eng = os.path.join(boards_dir, name + ".json") if boards_dir else None
     if eng and os.path.isfile(eng):
         return eng
+    for d in board_dirs():
+        p = os.path.join(d, name + ".json")
+        if os.path.isfile(p):
+            return p
     if hits:
         return hits[0]
     return eng

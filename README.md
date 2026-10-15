@@ -36,6 +36,19 @@ The server listens on `http://127.0.0.1:8765` (loopback only). `BOARD_PORT` over
 
 A sample board lives at `boards/demo-board.json`.
 
+## Import your workflows (`wb_init.py`)
+
+Your agent files (SOPs, skills, hooks, agent configs) are the system of record. `wb_init.py` reads them and writes boards, which are a derived view:
+
+    python wb_init.py --from <folder> --out <boards folder> [importer options]
+    WB_BOARD_DIRS=<boards folder> python serve.py      # the picker now lists them
+
+- **Importers** (`importers/`) turn one folder layout into boards. Today there is one, `tpm-portfolio` (`portfolio.json` + `projects/*/project.json`, optional `--sops DIR` of `*.sop.md`). It builds an overview, one board per project (pipeline, sources, children, the skills whose `SKILL.md` says `sop: SOP-NN`), process boards from SOP headings (nested, so zooming into a step opens its sub-steps), and a runtime board with the agent's hooks and MCP servers. The interface for adding importers is in `importers/__init__.py`.
+- **Provenance.** Every generated card records `src_path`, `src_anchor` (the heading or key) and `src_sha` (a hash of the file when the board was made), so drift between a board and its files can be detected. Hover a card to see its source.
+- **Station contracts.** `inputs` / `outputs` are filled only when the source declares them (an Inputs / Parameters / Outputs section, or `inputs:` / `outputs:` front matter). Otherwise the card shows **contract missing**. Nothing is guessed from headings.
+- **No-clobber.** Re-running keeps your layout and sticky notes. A board you edited since it was generated, or a board of the same name that `wb_init` did not make, is left alone and listed in `<out>/.wb-init-conflicts.json` (exit code 3). `--force` overwrites after a backup in `<out>/.wb-init-backup/`.
+- The run overlay ("last run", grey cards) only appears when a run source exists; on a setup with no telemetry nothing is greyed.
+
 ## Validate
 
     python validate.py boards/demo-board.json        # exit 0 ok, 2 invalid (reason on stderr)
