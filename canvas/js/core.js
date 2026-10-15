@@ -294,7 +294,7 @@ function hideDep(){const d=$("dep");if(d)d.style.display="none"}
 document.addEventListener("pointerdown",e=>{const d=$("dep");if(!d||d.style.display!=="block")return;if(d.contains(e.target)||e.target.closest&&e.target.closest("#bDeploy,#bDeployHelp"))return;hideDep()},true);
 document.addEventListener("keydown",e=>{if(e.key==="Escape")hideDep()},true);
 function deployRequest(){if(!board)return;const d=$("dep");d.innerHTML="";
-  d.appendChild(E("div",null,"Deploy turns this board into agent files: a SKILL.md your agent runs from the first station to the last, plus a line.json manifest. Your agent files stay the source of truth. Nothing is written until you approve the diff, and existing files are never overwritten."));
+  d.appendChild(E("div",null,"Deploy turns this board into agent files: a SKILL.md your agent runs from the first station to the last, plus a line.json manifest. Your agent files stay the source of truth. Nothing is written until you approve the diff. Files Deploy wrote before are updated (with a rollback copy); files you wrote or edited by hand are never overwritten."));
   const row=E("div");row.style.cssText="margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap";
   const tl=E("label",null,"Skills folder");const ti=E("input");ti.placeholder="server default (WB_DEPLOY_TARGET)";ti.value=localStorage.getItem("wb.deployTarget")||"";ti.style.width="240px";
   const nl=E("label",null,"Skill name");const ni=E("input");ni.value=boardName;ni.style.width="160px";
@@ -310,7 +310,8 @@ function deployRequest(){if(!board)return;const d=$("dep");d.innerHTML="";
     out.textContent=r.j.diff;pid=r.j.plan.id;if(r.j.plan.state==="proposed"){ab.style.display="";say("proposal "+pid+" ready - review the diff, then approve")}else say("proposal has conflicts - nothing can be written","err")};
   ab.onclick=async()=>{if(!pid)return;if(!confirm("Create these files in "+(ti.value.trim()||"the default skills folder")+"?"))return;
     const r=await api("/deploy/apply",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:pid,approve:true})});
-    if(r.ok){ab.style.display="none";out.textContent+="\n\nApplied: "+r.j.plan.files.length+" file(s) created in "+r.j.plan.target;say("deployed "+pid,"ok")}
+    if(r.ok){ab.style.display="none";const P=r.j.plan,n=k=>P.files.filter(f=>f.action===k).length;
+      out.textContent+="\n\nApplied in "+P.target+": "+n("create")+" created, "+n("update")+" updated, "+n("unchanged")+" unchanged. "+(P.drift&&P.drift.length?"DRIFT: files on disk do not match the plan.":"Re-read matches the plan.")+"\nUndo: python deploy.py rollback "+P.id;say("deployed "+pid,"ok")}
     else{out.textContent+="\n\nNot applied: "+((r.j&&r.j.error)||r.status);say("deploy refused","err")}};
   showDep(d);ti.focus()}
 

@@ -104,7 +104,7 @@ def test_existing_files_are_never_overwritten():
     with open(os.path.join(target, "line-a", "SKILL.md"), "w") as f:
         f.write("mine")
     plan, diff = D.propose("line-a", target)
-    assert plan["state"] == "conflict" and "EXISTS" in diff
+    assert plan["state"] == "conflict" and "CONFLICT" in diff
     try:
         D.apply(plan["id"], approve=True)
     except SystemExit:
