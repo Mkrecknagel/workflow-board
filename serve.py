@@ -458,7 +458,7 @@ class H(BaseHTTPRequestHandler):
 
     def _deploy(self, up):
         """POST /deploy/propose {board, target, name?} -> plan + diff (stages files, writes nothing in target).
-        POST /deploy/apply {id, approve: true} -> creates the staged NEW files in target. Owner only; same-machine only
+        POST /deploy/apply {id, approve: true, token} -> creates the staged NEW files in target. Owner only; same-machine only
         (request_is_local). The page never applies without the owner clicking Approve on the shown diff."""
         if self._actor() != "owner":
             return self._err(403, "owner only")
@@ -478,7 +478,7 @@ class H(BaseHTTPRequestHandler):
                 plan, diff = D.propose(str(body.get("board") or ""), tgt, body.get("name") or None)
                 return self._send(200, json.dumps({"plan": plan, "diff": diff}))
             if up == "/deploy/apply":
-                plan = D.apply(str(body.get("id") or ""), approve=body.get("approve") is True)
+                plan = D.apply(str(body.get("id") or ""), approve=body.get("approve") is True, token=body.get("token") if isinstance(body.get("token"), str) else None)
                 return self._send(200, json.dumps({"plan": plan}))
         except SystemExit as e:  # deploy.py reports refusals as SystemExit(message)
             return self._err(409, str(e))
