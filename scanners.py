@@ -99,6 +99,32 @@ def item(harness, kind, name, desc, path, template=None, subkind=None, extra=Non
     return it
 
 
+def _tilde(path):
+    """`~/rel/path` for a path under the user's home, else None (an absolute path elsewhere is not recorded)."""
+    if not path:
+        return None
+    home = os.path.normcase(os.path.realpath(_home()))
+    rp = os.path.normcase(os.path.realpath(path))
+    try:
+        if os.path.commonpath([rp, home]) != home:
+            return None
+    except ValueError:
+        return None
+    rel = os.path.relpath(os.path.realpath(path), os.path.realpath(_home())).replace("\\", "/")
+    return "~/" + rel
+
+
+def resource_template(it):
+    """Fallback card for an item with no dedicated card type (plugins, Codex hooks/agents, scheduled tasks, future kinds).
+    Structural and observe-only: it shows the item on the board and is never executed."""
+    ref = {"kind": it.get("kind") or "other", "name": it.get("name") or "item", "harness": it.get("harness") or it.get("source_agent") or "unknown"}
+    rel = _tilde(it.get("path"))
+    if rel:  # never an absolute user path: a board saved from this card may be committed to a public repo
+        ref["path"] = rel
+    return {"type": "resource", "label": ref["name"], "execution_mode": "observe", "ref": ref,
+            "ports": {"in": ["in"], "out": ["out"]}, "fields": {"harness": ref["harness"]}}
+
+
 def skill_template(name, path, harness):
     return {"type": "skill", "label": name, "execution_mode": "observe", "ref": {"name": name, "path": _norm(path)},
             "ports": {"in": ["task"], "out": ["result"]}, "fields": {"harness": harness}}

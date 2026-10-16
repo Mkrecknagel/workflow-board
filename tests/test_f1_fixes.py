@@ -92,7 +92,7 @@ def test_m2_beforeunload_and_draft_wiring_present():
 def test_M3_minor4_minor5_static_wiring():
     core = open(os.path.join(ROOT, "canvas", "js", "core.js"), encoding="utf-8").read()
     assert "guardNew" in core and "isApproval" in core and core.count("confirm(") >= 2
-    assert "Deploy = the agent starts following this board" in core
+    assert "Deploy = your agent builds the files this board describes" in core
 
 
 def test_minor2_visual_messages_say_autosaves():

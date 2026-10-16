@@ -1,20 +1,20 @@
 "use strict";
 import {routeAll} from "./router.js";import {badge} from "./readability.js";
 /* workflow-board canvas core (module). v2 restructure: state, render, drag, edges, view, insertSubgraph. */
-const TYPES={trigger:["⚡","event"],input:["⇥","schema"],skill:["✦","name"],hook:["⚓","event"],tool:["🔧","name"],agent:["🤖","seat"],gate:["⛨","rule"],output:["⇤","schema"],step:["▸","sop"],boundary:["▭","kind"],component:["◆","kind"],datastore:["🛢","kind"],external:["☁","vendor"],person:["👤","role"]};
+const TYPES={trigger:["⚡","event"],input:["⇥","schema"],skill:["✦","name"],hook:["⚓","event"],tool:["🔧","name"],agent:["🤖","seat"],gate:["⛨","rule"],output:["⇤","schema"],step:["▸","sop"],boundary:["▭","kind"],component:["◆","kind"],datastore:["🛢","kind"],external:["☁","vendor"],person:["👤","role"],resource:["◇","kind"]}; /* resource: fallback card for any library item without a dedicated type */
 const V3=["boundary","component","datastore","external","person"]; /* v3 architecture types: structural, no telemetry */
 const V3PORTS={component:{in:["uses"],out:["provides"]},datastore:{in:["write"],out:["read"]},external:{in:["call"],out:["event"]},boundary:{in:[],out:[]},person:{in:[],out:[]}};
 const V3DEF={boundary:{kind:"machine"},component:{kind:"service"},datastore:{kind:"file",path:"TODO"},external:{vendor:"TODO",protocol:"TODO"},person:{role:"TODO"}};
-const REQ={trigger:["event"],input:["schema"],skill:["name"],hook:["event","file"],gate:["kind","rule","verb"],agent:["route","seat","verb"],output:["schema"],tool:["name"],step:[],boundary:["kind"],component:["kind"],datastore:["kind","path"],external:["vendor","protocol"],person:["role"]};
+const REQ={trigger:["event"],input:["schema"],skill:["name"],hook:["event","file"],gate:["kind","rule","verb"],agent:["route","seat","verb"],output:["schema"],tool:["name"],step:[],boundary:["kind"],component:["kind"],datastore:["kind","path"],external:["vendor","protocol"],person:["role"],resource:["kind","name"]};
 const CW=192,HH=30,RH=20,STALE_MS=24*3600*1000;
 const GRID=8; /* single grid constant: CSS background size (applyView) and every snap use it */
 const snap=n=>Math.round(n/GRID)*GRID+0;
-const TYPE_COLOR={trigger:"#E69F00",input:"#56B4E9",skill:"#CC79A7",hook:"#F0E442",tool:"#A67C52",agent:"#0072B2",gate:"#D55E00",output:"#009E73",step:"#7A8396",boundary:"#6B7385",component:"#44AA99",datastore:"#AA4499",external:"#999933",person:"#882255"}; /* Okabe-Ito based; icon + label always accompany colour */
+const TYPE_COLOR={trigger:"#E69F00",input:"#56B4E9",skill:"#CC79A7",hook:"#F0E442",tool:"#A67C52",agent:"#0072B2",gate:"#D55E00",output:"#009E73",step:"#7A8396",boundary:"#6B7385",component:"#44AA99",datastore:"#AA4499",external:"#999933",person:"#882255",resource:"#5F6B7A"}; /* Okabe-Ito based; icon + label always accompany colour */
 const RESERVED=["id","type","ref","pos","immutable","execution_mode","enabled","style","fields"];
 const HEX=/^#[0-9a-fA-F]{6}$/;
 function textOn(hex){const n=parseInt(hex.slice(1),16),f=v=>{v/=255;return v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4)};
   const L=.2126*f(n>>16&255)+.7152*f(n>>8&255)+.0722*f(n&255);return(L+.05)/.05>=1.05/(L+.05)?"#111":"#fff"}
-const cardColor=c=>(c.style&&HEX.test(c.style.color||"")&&c.style.color)||TYPE_COLOR[c.type];
+const cardColor=c=>(c.style&&HEX.test(c.style.color||"")&&c.style.color)||TYPE_COLOR[c.type]||TYPE_COLOR.resource;
 const groupColor=g=>{const s=board&&board.group_styles&&board.group_styles[g];return s&&HEX.test(s.color||"")?s.color:null};
 let board=null,boardName=null,sel=new Set(),selEdge=null,view={x:40,y:30,k:1},seen={},drag=null;
 const $=id=>document.getElementById(id);
@@ -34,7 +34,7 @@ async function openBoard(n){if(window.wbAutosave&&board&&boardName)window.wbAuto
   const r=await api("/board/"+n);if(!r.ok){say("load failed: "+((r.j&&r.j.error)||r.status),"err");return}
   board=r.j;boardName=n;if(window.wbAutosave)window.wbAutosave.opened(n,board);sel=new Set();selEdge=null;$("picker").value=n;if(window.wbTickets)window.wbTickets.boardOpened(n);await loadTelemetry();render();renderInspector();fitView();say("loaded "+n)}
 async function loadTelemetry(){const r=await api("/telemetry");seen=(r.ok&&r.j&&r.j.last_seen)||{}}
-function isGrey(c){if(V3.includes(c.type))return false;const t=seen[c.id];if(!t)return true;const ms=Date.parse(t);return isNaN(ms)||Date.now()-ms>STALE_MS}
+function isGrey(c){if(V3.includes(c.type)||c.type==="resource"||!Object.keys(seen).length)return false;const t=seen[c.id];if(!t)return true;const ms=Date.parse(t);return isNaN(ms)||Date.now()-ms>STALE_MS}
 
 function portY(c,side,name){const i=c.ports[side].indexOf(name);return c.pos.y+HH+6+RH*Math.max(i,0)+RH/2}
 /* port geometry is MEASURED from the rendered .pt rows (the dot is CSS-centred on the row edge via --pd), cached per card as offsets from card pos in world px; zoom-independent. */
@@ -67,7 +67,7 @@ function render(){
     const d=E("div","card t-"+c.type+(sel.has(c.id)?" sel":"")+(isGrey(c)?" grey":"")+(c.enabled?"":" off"));d.dataset.id=c.id;d.dataset.type=c.type;if(c.type==="boundary"){d.dataset.bkind=(c.ref&&c.ref.kind)||"";if(c.size){d.style.width=c.size.w+"px";d.style.height=c.size.h+"px"}}
     d.style.left=c.pos.x+"px";d.style.top=c.pos.y+"px";
     const col=cardColor(c);d.style.setProperty("--tc",col);d.style.setProperty("--tx",textOn(col));
-    const h=E("div","hd");h.appendChild(E("i",null,TYPES[c.type][0]));h.appendChild(E("span",null,c.label));
+    const h=E("div","hd");h.appendChild(E("i",null,(TYPES[c.type]||TYPES.resource)[0]));h.appendChild(E("span",null,c.label));
     if(c.immutable){const l=E("small","lock","🔒");l.title="immutable";h.appendChild(l)}
     d.addEventListener("pointerdown",ev=>startDragCard(ev,c));d.addEventListener("pointerenter",()=>{hov=c.id;updateHL()});d.addEventListener("pointerleave",()=>{if(hov===c.id){hov=null;updateHL()}});d.appendChild(h);
     if(c.type==="boundary"){const kd=E("div","bkind",(c.ref&&c.ref.kind)||"boundary");d.appendChild(kd);if(window.wbTickets)window.wbTickets.decorate(d,c);root.appendChild(d);return}
@@ -216,6 +216,7 @@ function addCard(type){if(!board){say("open a board first","err");return}
   let n=1,id;do{id=type.slice(0,4)+"-new-"+(n++)}while(cardById(id));
   const refv=$("pref").value.trim();const ref={};
   REQ[type].forEach((k,i)=>{ref[k]=V3.includes(type)?((i===0&&refv&&k!=="kind")?refv:V3DEF[type][k]):(i===0&&refv)?refv:(k==="verb"?"inject":(k==="kind"?"budget":(k==="seat"?"claude":"TODO")))});
+  if(type==="resource"){ref.kind="other";ref.name=refv||"TODO"}
   const ports=V3.includes(type)?JSON.parse(JSON.stringify(V3PORTS[type])):{in:(type==="trigger"||type==="input")?[]:["in"],out:type==="output"?[]:["out"]};
   const r=$("vp").getBoundingClientRect();
   const c={id:id,type:type,label:refv||id,immutable:false,enabled:true,execution_mode:"observe",ref:ref,ports:ports,pos:{x:snap((r.width/2-view.x)/view.k-95),y:snap((r.height/2-view.y)/view.k-40)}};
@@ -292,10 +293,26 @@ function showDep(d){const lz=$("zm-lenses");const lb=lz?lz.getBoundingClientRect
 function hideDep(){const d=$("dep");if(d)d.style.display="none"}
 document.addEventListener("pointerdown",e=>{const d=$("dep");if(!d||d.style.display!=="block")return;if(d.contains(e.target)||e.target.closest&&e.target.closest("#bDeploy,#bDeployHelp"))return;hideDep()},true);
 document.addEventListener("keydown",e=>{if(e.key==="Escape")hideDep()},true);
-function deployRequest(){if(!board)return;const d=$("dep");d.innerHTML="";d.appendChild(E("div",null,"Ask the agent to deploy this board — it will start following these rules. Save first if you changed any behaviour."));
-  const sm=E("div",null,"Command, if you need it:");sm.style.cssText="font-size:11px;color:var(--mut);margin-top:6px";d.appendChild(sm);
-  d.appendChild(E("code",null,"/board deploy "+boardName));const x=E("button",null,"Close");x.onclick=hideDep;d.appendChild(x);showDep(d);
-  say("deploy requested - ask the agent to deploy; this page never writes active.json")}
+function deployRequest(){if(!board)return;const d=$("dep");d.innerHTML="";
+  d.appendChild(E("div",null,"Deploy turns this board into agent files: a SKILL.md your agent runs from the first station to the last, plus a line.json manifest. Your agent files stay the source of truth. Nothing is written until you approve the diff, and existing files are never overwritten."));
+  const row=E("div");row.style.cssText="margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap";
+  const tl=E("label",null,"Skills folder");const ti=E("input");ti.placeholder="server default (WB_DEPLOY_TARGET)";ti.value=localStorage.getItem("wb.deployTarget")||"";ti.style.width="240px";
+  const nl=E("label",null,"Skill name");const ni=E("input");ni.value=boardName;ni.style.width="160px";
+  const pb=E("button",null,"Propose");row.append(tl,ti,nl,ni,pb);d.appendChild(row);
+  const out=E("pre");out.style.cssText="max-height:40vh;overflow:auto;font:11px ui-monospace,monospace;white-space:pre-wrap;margin-top:8px;display:none";d.appendChild(out);
+  const ab=E("button",null,"Approve and create files");ab.style.display="none";ab.className="pri";
+  const x=E("button",null,"Close");x.onclick=hideDep;const br=E("div");br.style.marginTop="8px";br.append(ab,x);d.appendChild(br);
+  let pid=null;
+  pb.onclick=async()=>{if($("bSave").classList.contains("wb-behaviour-dirty")){out.style.display="block";out.textContent="Save the board first: Deploy compiles the saved board.";return}
+    localStorage.setItem("wb.deployTarget",ti.value.trim());out.style.display="block";out.textContent="compiling...";ab.style.display="none";
+    const r=await api("/deploy/propose",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({board:boardName,target:ti.value.trim()||null,name:ni.value.trim()||null})});
+    if(!r.ok){out.textContent="not proposed: "+((r.j&&r.j.error)||r.status);return}
+    out.textContent=r.j.diff;pid=r.j.plan.id;if(r.j.plan.state==="proposed"){ab.style.display="";say("proposal "+pid+" ready - review the diff, then approve")}else say("proposal has conflicts - nothing can be written","err")};
+  ab.onclick=async()=>{if(!pid)return;if(!confirm("Create these files in "+(ti.value.trim()||"the default skills folder")+"?"))return;
+    const r=await api("/deploy/apply",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:pid,approve:true})});
+    if(r.ok){ab.style.display="none";out.textContent+="\n\nApplied: "+r.j.plan.files.length+" file(s) created in "+r.j.plan.target;say("deployed "+pid,"ok")}
+    else{out.textContent+="\n\nNot applied: "+((r.j&&r.j.error)||r.status);say("deploy refused","err")}};
+  showDep(d);ti.focus()}
 
 /* ---- global pointer / keys ---- */
 const ptrs=new Map();let pinch=null;
@@ -319,7 +336,7 @@ $("vp").addEventListener("wheel",ev=>{ev.preventDefault();const r=$("vp").getBou
   const k=Math.max(.02,Math.min(2.5,view.k*(ev.deltaY<0?1.1:1/1.1)));view.x=mx-(mx-view.x)*(k/view.k);view.y=my-(my-view.y)*(k/view.k);view.k=k;applyView()},{passive:false});
 window.addEventListener("keydown",ev=>{const t=ev.target.tagName;if(t==="INPUT"||t==="TEXTAREA"||t==="SELECT")return;if(ev.key==="Delete"||ev.key==="Backspace"){ev.preventDefault();deleteSelected()}});
 window.addEventListener("keydown",ev=>{const t=ev.target.tagName;if(t==="INPUT"||t==="TEXTAREA"||t==="SELECT")return;if((ev.ctrlKey||ev.metaKey)&&!ev.shiftKey&&(ev.key==="z"||ev.key==="Z")&&lastDel){ev.preventDefault();undoDelete()}});
-$("bDeployHelp").onclick=()=>{const d=$("dep");d.innerHTML="";d.appendChild(E("div",null,"Deploy = the agent starts following this board's behaviour."));d.appendChild(E("div",null,"Visual changes (moving, colours, notes) autosave and never need a deploy. Behaviour changes: Save, then the owner runs the deploy command."));const x=E("button",null,"Close");x.onclick=hideDep;d.appendChild(x);showDep(d)};
+$("bDeployHelp").onclick=()=>{const d=$("dep");d.innerHTML="";d.appendChild(E("div",null,"Deploy = your agent builds the files this board describes (skills, SOP), then runs from those files."));d.appendChild(E("div",null,"Visual changes (moving, colours, notes) autosave and never need a deploy. Behaviour changes: Save, then Deploy."));const x=E("button",null,"Close");x.onclick=hideDep;d.appendChild(x);showDep(d)};
 $("bSave").onclick=saveBoard;$("bDeploy").onclick=deployRequest;$("bFit").onclick=fitView;$("picker").onchange=e=>openBoard(e.target.value);
 buildPalette();loadBoards().catch(e=>say("init failed: "+e,"err"));
 

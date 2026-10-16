@@ -5,6 +5,7 @@ Board editor and store for agent workflows. Boards are JSON files that describe 
 ## What the board does
 
 - **Library.** The left panel lists everything installed (skills, hooks, tools, MCP servers, scheduled tasks, plugin skills) from the Claude, Codex, Kiro and `~/.agents` install roots (`library.py`, `scanners.py`), plus reusable modules. Every scanner returns the same neutral item record (`schema/item.schema.json`, with a `harness` field), so adding a harness means adding a scanner. The Kiro scanner reads `skills/`, nested `steering/`, `settings/mcp.json` and each `agents/*.json`, including the hooks and MCP servers declared inside an agent and the `skill://` / `file://` resources it references. Scanners are read-only and record names only: MCP env/args and hook command lines are never copied. Drag an item onto the canvas to add a card, or click a palette type. Descriptions wrap in a wide panel; the panel and inspector widths are draggable and persisted.
+- **Resource cards (fallback).** Every library item can go on the board. An item with no dedicated card type (a plugin, a Codex hook or agent, a scheduled task, a kind added later) becomes a `resource` card: `ref {kind, name}` plus optional `harness` and `path`. Resource cards are structural and observe-only: never enforced, never dispatched, never greyed for missing telemetry. The canvas also draws any card type it does not know with the resource look instead of failing; the validator still rejects unknown types on save.
 - **Inspector and fields.** Click a card to edit its label, colour, ports and free-form `fields` (key/type/value; reserved names are rejected). Group (lane) colours are editable. Everything snaps to a grid.
 - **Tickets.** Comment on any card from the page. Tickets are stored under `tickets/` (`tickets_store.py`) and worked from any agent with `python tickets.py list|show|claim|reply|status|approve|plan|release|sweep`. Ticket text is treated as untrusted. Governance-touching tickets need the owner's approval quote.
 - **Modules.** `modules/*.module.json` are reusable sub-graphs (post-x, resize-caption, save-photo-caption, loop patterns). Insert one at the view; validate with `python validate.py <file> --module`.
@@ -18,13 +19,14 @@ Board editor and store for agent workflows. Boards are JSON files that describe 
 
     python serve.py
 
-The server listens on `http://127.0.0.1:8765` (loopback only). `BOARD_PORT` overrides the port; `--roots claude=DIR,codex=DIR,kiro=DIR,agents=DIR` replaces the library install roots. `PUT /board/<name>` validates and writes atomically (invalid returns 422 and the file is untouched; immutable cards and their edges cannot be removed). `active.json` is never served or written here.
+The server listens on `http://127.0.0.1:8765` (loopback only). Every request must carry a loopback `Host` (and, for browser writes, a loopback `Origin`); anything else gets 403 (this stops DNS-rebinding and cross-site writes). To reach it through a reverse proxy or a tailnet name, list that host name in `WB_ALLOWED_HOSTS` (comma-separated, port ignored), for example `WB_ALLOWED_HOSTS=wb.example.ts.net`. `BOARD_PORT` overrides the port; `--roots claude=DIR,codex=DIR,kiro=DIR,agents=DIR` replaces the library install roots. `PUT /board/<name>` validates and writes atomically (invalid returns 422 and the file is untouched; immutable cards and their edges cannot be removed). `active.json` is never served or written here.
 
 ### Environment variables
 
 | Variable | Purpose | Default |
 |---|---|---|
 | `BOARD_PORT` | server port | `8765` |
+| `WB_ALLOWED_HOSTS` | extra `Host` names the server accepts besides loopback (comma-separated, port ignored), for a reverse proxy or tailnet name, e.g. `wb.example.ts.net` | none |
 | `WORKFLOW_BOARD_ROOT` | root folder scanned for instance boards (see below); `BOARD_REGISTRY_ROOT` is an alias used by tests | `registry-root/` next to `registry.py` |
 | `PW` | path to a `playwright-core` install, used by the browser tests and readability scripts | `playwright-core` (resolved by node) |
 | `WB_CLAUDE_DIR` | install folder scanned by the connector inventory | `~/.claude` |
@@ -34,6 +36,19 @@ The server listens on `http://127.0.0.1:8765` (loopback only). `BOARD_PORT` over
 | `WB_IDENTITY_CONFIG` | optional JSON file with an `identity` block shown in the inventory | none |
 
 A sample board lives at `boards/demo-board.json`.
+
+## Import your workflows (`wb_init.py`)
+
+Your agent files (SOPs, skills, hooks, agent configs) are the system of record. `wb_init.py` reads them and writes boards, which are a derived view:
+
+    python wb_init.py --from <folder> --out <boards folder> [importer options]
+    WB_BOARD_DIRS=<boards folder> python serve.py      # the picker now lists them
+
+- **Importers** (`importers/`) turn one folder layout into boards. Today there is one, `tpm-portfolio` (`portfolio.json` + `projects/*/project.json`, optional `--sops DIR` of `*.sop.md`). It builds an overview, one board per project (pipeline, sources, children, the skills whose `SKILL.md` says `sop: SOP-NN`), process boards from SOP headings (nested, so zooming into a step opens its sub-steps), and a runtime board with the agent's hooks and MCP servers. The interface for adding importers is in `importers/__init__.py`.
+- **Provenance.** Every generated card records `src_path`, `src_anchor` (the heading or key) and `src_sha` (a hash of the file when the board was made), so drift between a board and its files can be detected. Hover a card to see its source.
+- **Station contracts.** `inputs` / `outputs` are filled only when the source declares them (an Inputs / Parameters / Outputs section, or `inputs:` / `outputs:` front matter). Otherwise the card shows **contract missing**. Nothing is guessed from headings.
+- **No-clobber.** Re-running keeps your layout and sticky notes. A board you edited since it was generated, or a board of the same name that `wb_init` did not make, is left alone and listed in `<out>/.wb-init-conflicts.json` (exit code 3). `--force` overwrites after a backup in `<out>/.wb-init-backup/`.
+- The run overlay ("last run", grey cards) only appears when a run source exists; on a setup with no telemetry nothing is greyed.
 
 ## Validate
 
