@@ -201,3 +201,61 @@ def test_registry_finds_boards_in_wb_board_dirs():
 if __name__ == "__main__":
     import pytest
     sys.exit(pytest.main([__file__, "-q"]))
+
+
+def test_importer_finds_nested_and_configured_project_folders_and_slugs_alias():
+    t = tempfile.mkdtemp(prefix="wb-init-layout-")
+    root = os.path.join(t, "vault")
+    w(os.path.join(root, "config.json"), {"paths": {"projects": "4-projects"}})
+    w(os.path.join(root, "portfolio.json"), {"projects": [
+        {"alias": "top", "name": "Top", "state": "ACTIVE"},
+        {"alias": "kid", "name": "Kid", "state": "ACTIVE", "parent": "top"},
+        {"alias": "../../escape", "name": "Bad", "state": "ACTIVE"}]})
+    w(os.path.join(root, "4-projects", "top", "project.json"), {"context": "top ctx", "children": ["kid"]})
+    w(os.path.join(root, "4-projects", "top", "0-kb", "_index.md"), "---\nhealth: on_track\nnext_action: \"go\"\n---\n")
+    w(os.path.join(root, "4-projects", "top", "kid", "project.json"), {"context": "kid ctx"})
+    w(os.path.join(t, "escape", "project.json"), {"context": "OUTSIDE"})                 # must never be read
+    imp = importers.get("tpm-portfolio")
+    assert imp.detect(root)
+    boards = imp.build(root, {"items": []})
+    about = [c for c in boards["p-top"]["cards"] if c["id"] == "about"][0]
+    assert about["fields"]["context"] == "top ctx" and about["fields"]["health"] == "on_track"   # configured folder + 0-kb
+    kid = [c for c in boards["p-kid"]["cards"] if c["id"] == "about"][0]
+    assert kid["fields"]["context"] == "kid ctx"                                                   # nested child found by walking
+    bad = [c for c in boards[[n for n in boards if "escape" in n][0]]["cards"] if c["id"] == "about"][0]
+    assert bad["fields"].get("context") is None and "OUTSIDE" not in json.dumps(boards)                                                        # alias slugged, no traversal
+
+
+def test_atomic_write_leaves_no_temp_file_on_failure():
+    d = tempfile.mkdtemp(prefix="wb-atomic-")
+    try:
+        wb_init._atomic_write(os.path.join(d, "x.json"), {"bad": object()})
+    except TypeError:
+        pass
+    assert os.listdir(d) == []
+    wb_init._atomic_write(os.path.join(d, "x.json"), {"ok": 1})
+    assert os.listdir(d) == ["x.json"]
+
+
+def test_registered_board_wins_over_wb_board_dirs_board_of_same_name():
+    import registry as REG
+    t = tempfile.mkdtemp(prefix="wb-prec-")
+    board = {"schema": "workflow-board/v1", "board": "same", "cards": [], "edges": []}
+    reg_board = w(os.path.join(t, "ws", "same.json"), board)
+    gen_dir = os.path.join(t, "gen")
+    w(os.path.join(gen_dir, "same.json"), board)
+    root = os.path.join(t, "root")
+    w(os.path.join(root, "projects", "a", "project.json"),
+      {"sources": {"artifacts": [{"type": "workflow-board", "board": "same", "url": reg_board}]}})
+    old = os.environ.get("WB_BOARD_DIRS")
+    os.environ["WB_BOARD_DIRS"] = gen_dir
+    try:
+        paths, errs = REG.scan(os.path.join(t, "engine"), root)
+        assert os.path.samefile(paths["same"], reg_board)
+        assert any("duplicate board name 'same'" in e for e in errs)
+        assert os.path.samefile(REG.resolve("same", os.path.join(t, "engine"), root), reg_board)
+    finally:
+        if old is None:
+            os.environ.pop("WB_BOARD_DIRS", None)
+        else:
+            os.environ["WB_BOARD_DIRS"] = old

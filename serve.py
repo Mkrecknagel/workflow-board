@@ -319,6 +319,17 @@ def readability_of(name):
 LOCAL_HOSTS = {"127.0.0.1", "localhost", "[::1]"}
 
 
+def _allowed_hosts():
+    """Extra Host names accepted besides loopback: WB_ALLOWED_HOSTS, comma-separated (e.g. a reverse proxy's name such as
+    wb.example.ts.net). Matched on the host name only, so any port is accepted; read per request so it can be changed live."""
+    out = set()
+    for h in (os.environ.get("WB_ALLOWED_HOSTS") or "").split(","):
+        h = h.strip().lower()
+        if h:
+            out.add(h.rpartition(":")[0] if h.count(":") == 1 and not h.endswith("]") else h)
+    return out
+
+
 def request_is_local(headers, port):
     """Same-machine guard for every request. The server binds 127.0.0.1, but a page on another site can still send
     requests to it from your browser, and DNS rebinding can make such a page same-origin. So:
@@ -329,13 +340,18 @@ def request_is_local(headers, port):
     name, _, hp = host.rpartition(":") if not host.endswith("]") else (host, "", "")
     if not name:
         name, hp = host, ""
-    if name not in LOCAL_HOSTS or (hp and hp != str(port)):
+    extra = _allowed_hosts()
+    if name in extra:
+        pass  # an operator-listed proxy name: any port (a proxy fronts this listener on its own port)
+    elif name not in LOCAL_HOSTS or (hp and hp != str(port)):
         return False, f"Host {host!r} is not this local server"
     origin = (headers.get("Origin") or "").strip().lower()
     if origin and origin != "null":
         from urllib.parse import urlsplit
         u = urlsplit(origin)
-        if (u.hostname not in ("127.0.0.1", "localhost", "::1")) or (u.port or 80) != port:
+        if u.hostname in extra:
+            pass
+        elif (u.hostname not in ("127.0.0.1", "localhost", "::1")) or (u.port or 80) != port:
             return False, f"cross-origin request from {origin!r} refused"
     elif origin == "null":
         return False, "opaque-origin request refused"

@@ -74,10 +74,29 @@ def test_every_library_item_has_a_card_template():
     assert plain and all(i["card_template"] for i in plain)
     res = {i["name"]: i["card_template"] for i in plain if i["card_template"]["type"] == "resource"}
     assert {"demo-plugin@market", "Stop", "reviewer"} <= set(res)
-    assert res["reviewer"]["ref"] == {"kind": "agent", "name": "reviewer", "harness": "codex", "path": res["reviewer"]["ref"]["path"]}
+    ref = res["reviewer"]["ref"]
+    assert {k: ref[k] for k in ("kind", "name", "harness")} == {"kind": "agent", "name": "reviewer", "harness": "codex"}
+    for tpl in res.values():  # no absolute path ever reaches a card ref
+        p = tpl["ref"].get("path")
+        assert p is None or p.startswith("~/"), p
     for name, tpl in res.items():  # a card built from each template validates
         c = dict(tpl, id="rs-x", immutable=False, enabled=True, pos={"x": 0, "y": 0})
         assert invalid(board(c)) is None, (name, invalid(board(c)))
+
+
+def test_resource_path_is_home_relative_or_omitted():
+    import scanners as S
+    home = S._home()
+    it = {"kind": "plugin", "name": "p", "harness": "claude", "path": os.path.join(home, "some", "dir", "x.json")}
+    assert S.resource_template(it)["ref"]["path"] == "~/some/dir/x.json"
+    outside = tempfile.mkdtemp(prefix="wb-outside-")
+    it["path"] = os.path.join(outside, "x.json")
+    real = S._home
+    S._home = lambda: os.path.join(outside, "elsewhere")
+    try:
+        assert "path" not in S.resource_template(it)["ref"]
+    finally:
+        S._home = real
 
 
 if __name__ == "__main__":

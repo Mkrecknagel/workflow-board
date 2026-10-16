@@ -84,19 +84,13 @@ def registered(root=None):
 
 
 def scan(boards_dir, root=None):
-    """-> (paths {name: path}, errors [str]). Engine boards first; a duplicate name keeps the first and reports the rest."""
+    """-> (paths {name: path}, errors [str]). Order: engine boards, registered instance boards, WB_BOARD_DIRS boards; a duplicate name keeps the first and reports the rest."""
     paths, errors = {}, []
     if boards_dir and os.path.isdir(boards_dir):
         for fn in sorted(os.listdir(boards_dir)):
             p = os.path.join(boards_dir, fn)
             if fn.endswith(".json") and fn != "active.json" and os.path.isfile(p):
                 paths[fn[:-5]] = p
-    for d in board_dirs():
-        for n, p in _dir_boards(d).items():
-            if n in paths:
-                errors.append(f"duplicate board name '{n}': {p} (WB_BOARD_DIRS) conflicts with {paths[n]}; keeping the first")
-                continue
-            paths[n] = p
     reg, errors2 = registered(root)
     errors += errors2
     for r in reg:
@@ -108,6 +102,12 @@ def scan(boards_dir, root=None):
             errors.append(f"registered board '{n}' is missing: {p} (registered in {r['project']})")
             continue
         paths[n] = p
+    for d in board_dirs():  # generated/extra boards last: a registered instance board of the same name wins
+        for n, p in _dir_boards(d).items():
+            if n in paths:
+                errors.append(f"duplicate board name '{n}': {p} (WB_BOARD_DIRS) conflicts with {paths[n]}; keeping the first")
+                continue
+            paths[n] = p
     return paths, errors
 
 
@@ -124,6 +124,9 @@ def resolve(name, boards_dir, root=None):
     eng = os.path.join(boards_dir, name + ".json") if boards_dir else None
     if eng and os.path.isfile(eng):
         return eng
+    for h in hits:
+        if os.path.isfile(h):
+            return h
     for d in board_dirs():
         p = os.path.join(d, name + ".json")
         if os.path.isfile(p):
