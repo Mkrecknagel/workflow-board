@@ -25,6 +25,7 @@ Rules every scanner follows:
 import glob
 import hashlib
 import json
+import itertools
 import os
 import re
 
@@ -98,12 +99,28 @@ def item(harness, kind, name, desc, path, template=None, subkind=None, extra=Non
     return it
 
 
+def _tilde(path):
+    """`~/rel/path` for a path under the user's home, else None (an absolute path elsewhere is not recorded)."""
+    if not path:
+        return None
+    home = os.path.normcase(os.path.realpath(_home()))
+    rp = os.path.normcase(os.path.realpath(path))
+    try:
+        if os.path.commonpath([rp, home]) != home:
+            return None
+    except ValueError:
+        return None
+    rel = os.path.relpath(os.path.realpath(path), os.path.realpath(_home())).replace("\\", "/")
+    return "~/" + rel
+
+
 def resource_template(it):
     """Fallback card for an item with no dedicated card type (plugins, Codex hooks/agents, scheduled tasks, future kinds).
     Structural and observe-only: it shows the item on the board and is never executed."""
     ref = {"kind": it.get("kind") or "other", "name": it.get("name") or "item", "harness": it.get("harness") or it.get("source_agent") or "unknown"}
-    if it.get("path"):
-        ref["path"] = it["path"]
+    rel = _tilde(it.get("path"))
+    if rel:  # never an absolute user path: a board saved from this card may be committed to a public repo
+        ref["path"] = rel
     return {"type": "resource", "label": ref["name"], "execution_mode": "observe", "ref": ref,
             "ports": {"in": ["in"], "out": ["out"]}, "fields": {"harness": ref["harness"]}}
 
@@ -188,21 +205,54 @@ def scan_generic(root, col, harness="agents"):
 
 # ---- Kiro ----
 
-_SCRIPT = re.compile(r"((?:~|/)[^\s'\"|;&]+|[\w.-]+\.(?:sh|py|js|ts|ps1))")
+# Candidate script paths in a command line: quoted strings, drive-letter paths (either slash), ~ or / paths, bare script names.
+_SCRIPT = re.compile(r"\"([^\"]+)\"|'([^']+)'|((?:[A-Za-z]:[\\/]|~|/|\\\\)[^\s'\"|;&]*|[\w.-]+\.(?:sh|py|js|ts|ps1))")
+
+
+def _hook_candidates(command):
+    out = []
+    for q1, q2, tok in _SCRIPT.findall(command or ""):
+        out.append(q1 or q2 or tok)
+    words = (command or "").split()  # unquoted paths containing spaces: try growing prefixes of the leading words
+    for n in range(2, min(len(words), 8) + 1):
+        out.append(" ".join(words[:n]))
+    return out
 
 
 def _hook_file(command, agent_path):
     """The script a hook command runs, or the agent file when the command is not a script path. Never the full command."""
-    for tok in _SCRIPT.findall(command or ""):
-        p = os.path.expanduser(tok)
+    for tok in _hook_candidates(command):
+        p = os.path.expanduser(tok.strip())
         if os.path.isfile(p):
             return _norm(p)
     return _norm(agent_path)
 
 
-def _resource_paths(ref):
+def _home():
+    return os.path.expanduser("~")
+
+
+def _allowed_roots(root, allow=None):
+    roots = [_home(), root] + list(allow or []) + [r for r in os.environ.get("WB_SCAN_ALLOW", "").split(os.pathsep) if r]
+    return [os.path.normcase(os.path.realpath(r)) for r in roots if r]
+
+
+def _under(p, roots):
+    rp = os.path.normcase(os.path.realpath(p))
+    for r in roots:
+        try:
+            if os.path.commonpath([rp, r]) == r:
+                return True
+        except ValueError:  # different drives
+            continue
+    return False
+
+
+def _resource_paths(ref, roots=None):
     """file:// and skill:// resource URIs -> absolute paths. Relative file:// refs resolve against the
-    workspace the agent runs in, which a global scan cannot know, so they are skipped."""
+    workspace the agent runs in, which a global scan cannot know, so they are skipped. When `roots` is given, only files
+    under those roots (the user's home, the scanned root, WB_SCAN_ALLOW) are returned, so an agent file cannot make the
+    scanner read arbitrary documents."""
     if not isinstance(ref, str):
         return []
     m = re.match(r"^(file|skill)://(.+)$", ref)
@@ -212,13 +262,16 @@ def _resource_paths(ref):
     if not os.path.isabs(p):
         return []
     if any(ch in p for ch in "*?["):
-        return sorted(glob.glob(p, recursive=True))[:MAX_GLOB]
-    return [p] if os.path.isfile(p) else []
+        found = sorted(itertools.islice(glob.iglob(p, recursive=True), MAX_GLOB))
+    else:
+        found = [p] if os.path.isfile(p) else []
+    return [f for f in found if roots is None or _under(f, roots)]
 
 
-def scan_kiro(root, col):
+def scan_kiro(root, col, allow=None):
     if not root or not os.path.isdir(root):
         return
+    roots = _allowed_roots(root, allow)
     h = "kiro"
     scan_skill_dir(h, os.path.join(root, "skills"), col)
     for p in sorted(glob.glob(os.path.join(root, "steering", "**", "*.md"), recursive=True))[:MAX_GLOB]:
@@ -250,7 +303,7 @@ def scan_kiro(root, col):
         for n in sorted(a.get("mcpServers") or {}):
             col.add(mcp_item(h, n, ap), an)
         for ref in a.get("resources") or []:
-            for p in _resource_paths(ref):
+            for p in _resource_paths(ref, roots):
                 if p.endswith("SKILL.md"):
                     col.add(_md_item(h, p, "skill"), an)
                 elif p.endswith(".md"):
