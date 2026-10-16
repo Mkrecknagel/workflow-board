@@ -4,7 +4,7 @@ Board editor and store for agent workflows. Boards are JSON files that describe 
 
 ## What the board does
 
-- **Library.** The left panel lists everything installed (skills, hooks, tools, MCP servers, scheduled tasks, plugin skills) from the Claude, Codex and Kiro install roots (`library.py`), plus reusable modules. Drag an item onto the canvas to add a card, or click a palette type. Descriptions wrap in a wide panel; the panel and inspector widths are draggable and persisted.
+- **Library.** The left panel lists everything installed (skills, hooks, tools, MCP servers, scheduled tasks, plugin skills) from the Claude, Codex, Kiro and `~/.agents` install roots (`library.py`, `scanners.py`), plus reusable modules. Every scanner returns the same neutral item record (`schema/item.schema.json`, with a `harness` field), so adding a harness means adding a scanner. The Kiro scanner reads `skills/`, nested `steering/`, `settings/mcp.json` and each `agents/*.json`, including the hooks and MCP servers declared inside an agent and the `skill://` / `file://` resources it references. Scanners are read-only and record names only: MCP env/args and hook command lines are never copied. Drag an item onto the canvas to add a card, or click a palette type. Descriptions wrap in a wide panel; the panel and inspector widths are draggable and persisted.
 - **Inspector and fields.** Click a card to edit its label, colour, ports and free-form `fields` (key/type/value; reserved names are rejected). Group (lane) colours are editable. Everything snaps to a grid.
 - **Tickets.** Comment on any card from the page. Tickets are stored under `tickets/` (`tickets_store.py`) and worked from any agent with `python tickets.py list|show|claim|reply|status|approve|plan|release|sweep`. Ticket text is treated as untrusted. Governance-touching tickets need the owner's approval quote.
 - **Modules.** `modules/*.module.json` are reusable sub-graphs (post-x, resize-caption, save-photo-caption, loop patterns). Insert one at the view; validate with `python validate.py <file> --module`.
@@ -18,7 +18,7 @@ Board editor and store for agent workflows. Boards are JSON files that describe 
 
     python serve.py
 
-The server listens on `http://127.0.0.1:8765` (loopback only). `BOARD_PORT` overrides the port; `--roots claude=DIR,codex=DIR,kiro=DIR` replaces the library install roots. `PUT /board/<name>` validates and writes atomically (invalid returns 422 and the file is untouched; immutable cards and their edges cannot be removed). `active.json` is never served or written here.
+The server listens on `http://127.0.0.1:8765` (loopback only). `BOARD_PORT` overrides the port; `--roots claude=DIR,codex=DIR,kiro=DIR,agents=DIR` replaces the library install roots. `PUT /board/<name>` validates and writes atomically (invalid returns 422 and the file is untouched; immutable cards and their edges cannot be removed). `active.json` is never served or written here.
 
 ### Environment variables
 
@@ -28,6 +28,9 @@ The server listens on `http://127.0.0.1:8765` (loopback only). `BOARD_PORT` over
 | `WORKFLOW_BOARD_ROOT` | root folder scanned for instance boards (see below); `BOARD_REGISTRY_ROOT` is an alias used by tests | `registry-root/` next to `registry.py` |
 | `PW` | path to a `playwright-core` install, used by the browser tests and readability scripts | `playwright-core` (resolved by node) |
 | `WB_CLAUDE_DIR` | install folder scanned by the connector inventory | `~/.claude` |
+| `WB_KIRO_DIR` | Kiro install root scanned by the library and used for ref validation | `~/.kiro` |
+| `WB_AGENTS_DIR` | generic `.agents` root (`skills/*/SKILL.md`, `AGENTS.md`) | `~/.agents` |
+| `WB_CODEX_DIR` | Codex install root | `~/.Codex` |
 | `WB_IDENTITY_CONFIG` | optional JSON file with an `identity` block shown in the inventory | none |
 
 A sample board lives at `boards/demo-board.json`.

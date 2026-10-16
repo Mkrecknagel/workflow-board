@@ -41,13 +41,13 @@ MIME = {".js": "text/javascript; charset=utf-8", ".mjs": "text/javascript; chars
 
 
 def parse_roots(spec):
-    """--roots 'DIR' or 'claude=DIR,codex=DIR,kiro=DIR' (os.pathsep or comma separated). Replaces the default install roots."""
-    r = {"claude": None, "codex": None, "kiro": None, "_mcp_json": None, "_tasks": False}
+    """--roots 'DIR' or 'claude=DIR,codex=DIR,kiro=DIR,agents=DIR' (os.pathsep or comma separated). Replaces the default install roots."""
+    r = {"claude": None, "codex": None, "kiro": None, "agents": None, "_mcp_json": None, "_tasks": False}
     for part in re.split(r"[,;]" if os.pathsep == ";" else r"[,:]", spec):
         part = part.strip()
         if not part:
             continue
-        m = re.match(r"^(claude|codex|kiro)=(.+)$", part)
+        m = re.match(r"^(claude|codex|kiro|agents)=(.+)$", part)
         agent, d = (m.group(1), m.group(2)) if m else ("claude", part)
         r[agent] = d
     if r["claude"]:

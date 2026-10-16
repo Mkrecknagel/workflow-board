@@ -68,10 +68,41 @@ def find_verbs(o, path=""):
             yield from find_verbs(v, f"{path}[{i}]")
 
 
+_SCANNED = None
+
+
+def scanned_refs():
+    """Refs of everything the harness-neutral scanners find (Kiro, ~/.agents, Codex), so a card made from any library item
+    validates, not only ~/.claude ones. Roots come from WB_KIRO_DIR / WB_AGENTS_DIR / WB_CODEX_DIR (defaults ~/.kiro,
+    ~/.agents, ~/.Codex). Cached per process; read-only."""
+    global _SCANNED
+    if _SCANNED is None:
+        import library as L
+        home = os.path.expanduser("~")
+        roots = {"claude": None, "_mcp_json": None, "_tasks": False,
+                 "codex": os.environ.get("WB_CODEX_DIR") or os.path.join(home, ".Codex"),
+                 "kiro": os.environ.get("WB_KIRO_DIR") or os.path.join(home, ".kiro"),
+                 "agents": os.environ.get("WB_AGENTS_DIR") or os.path.join(home, ".agents")}
+        out = {"skill": set(), "hook": set(), "tool": set()}
+        for it in L.scan(roots):
+            t = it.get("card_template") or {}
+            r = t.get("ref") or {}
+            if t.get("type") == "skill" and r.get("name"):
+                out["skill"].add(r["name"])
+            elif t.get("type") == "hook" and r.get("file"):
+                out["hook"].add(os.path.normpath(r["file"]))
+            elif t.get("type") == "tool" and r.get("name"):
+                out["tool"].add(r["name"])
+        _SCANNED = out
+    return _SCANNED
+
+
 def tool_installed(name, schema):
     if name in schema["x-builtin-tools"]:
         return True
     if any(name.startswith(p) and len(name) > len(p) for p in schema["x-connected-mcp-prefixes"]):
+        return True
+    if name in scanned_refs()["tool"]:
         return True
     try:
         with open(os.path.join(CLAUDE, "settings.json"), encoding="utf-8") as f:
@@ -88,12 +119,15 @@ def resolve_refs(doc, schema):
                 raise Invalid(f"card {cid}: {t} ref missing '{k}'")
         if t == "skill":
             n = r["name"]
-            if not re.fullmatch(r"[a-z0-9-]+", str(n)) or not os.path.isfile(os.path.join(CLAUDE, "skills", n, "SKILL.md")):
+            ok = re.fullmatch(r"[a-z0-9-]+", str(n)) and (os.path.isfile(os.path.join(CLAUDE, "skills", n, "SKILL.md"))
+                                                          or n in scanned_refs()["skill"])
+            if not ok:
                 raise Invalid(f"card {cid}: skill '{n}' not installed (no ~/.claude/skills/{n}/SKILL.md)")
         elif t == "hook":
             f = str(r["file"])
             p = os.path.normpath(os.path.join(CLAUDE, f))
-            if ".." in f.replace("\\", "/").split("/") or not p.startswith(os.path.normpath(CLAUDE)) or not os.path.isfile(p):
+            claude_ok = ".." not in f.replace("\\", "/").split("/") and p.startswith(os.path.normpath(CLAUDE)) and os.path.isfile(p)
+            if not claude_ok and os.path.normpath(f) not in scanned_refs()["hook"]:
                 raise Invalid(f"card {cid}: hook file '{f}' not installed under ~/.claude")
         elif t == "step":
             # SOP step card: documentation only, no ref resolution. v1 steps (no ref.kind) need sop + order;

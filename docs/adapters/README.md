@@ -1,12 +1,16 @@
 # Workflow board adapters
 
-Core (vendor-neutral): board/module/proposal JSON, `validate.py`, `serve.py`, `library.py`, the canvas.
+Core (vendor-neutral): board/module/proposal/item JSON, `validate.py`, `serve.py`, `library.py`, `scanners.py`, the canvas.
+
+Discovery and execution are separate. Every harness gets a read-only scanner that turns its install into neutral item
+records (`schema/item.schema.json`); an item a harness cannot execute still appears on the board.
 
 | Agent | Adapter | Status |
 |---|---|---|
 | Claude | existing dev-mod executor (unchanged) | live |
 | Codex | `adapters/codex.py --board <name>` | compile-to-proposal only |
-| Kiro | `docs/adapters/kiro.md` | spec document only |
+| Kiro | `scanners.py scan_kiro`, `docs/adapters/kiro.md` | discovery live; execution observe-only |
+| any `.agents` harness | `scanners.py scan_generic` (`~/.agents/skills`, `AGENTS.md`) | discovery live |
 
 ## Codex
 

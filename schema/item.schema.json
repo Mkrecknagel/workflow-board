@@ -1,0 +1,21 @@
+{
+  "$comment": "workflow-board/item/v1: the neutral library item record every scanner returns (library.py, scanners.py). GET /library returns {items: [item...]}. Harness-specific scanners only produce these records; the canvas and validator never read a harness install directly. Interpreted by tests/test_scanners.py with validate.check.",
+  "type": "object",
+  "required": ["id", "kind", "harness", "name", "description", "path", "installed", "card_template"],
+  "properties": {
+    "id": {"type": "string"},
+    "kind": {"enum": ["skill", "agent", "hook", "mcp", "command", "plugin", "module", "task"]},
+    "subkind": {"enum": ["skill", "steering", "instructions"]},
+    "harness": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+    "source_agent": {"type": "string"},
+    "name": {"type": "string"},
+    "description": {"type": "string"},
+    "triggers": {"type": "array", "items": {"type": "string"}},
+    "path": {"type": ["string", "null"]},
+    "installed": {"type": "boolean"},
+    "scanned_at": {"type": ["string", "null"]},
+    "used_by": {"type": "array", "items": {"type": "string"}},
+    "event": {"type": "string"},
+    "card_template": {"type": ["object", "null"]}
+  }
+}
