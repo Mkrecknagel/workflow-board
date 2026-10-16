@@ -1,5 +1,5 @@
 {
-  "$comment": "workflow-board/v1 (v2 additions: step ref.kind, x-enforce-types, origin_module/module_version/pasted_at/proposal card fields; v2.1: optional card style{color} + fields{} and board group_styles{group:{color}}; v2.2: group_styles[group].size{w,h} optional min outline size; boards stay schema v1). Interpreted by validate.py (subset: type, required, enum, const, pattern, properties, items, minimum). x- keys are validator extensions. v3: card types boundary/component/datastore/external/person; top-level card keys drill (board id) and boundary (card id) and size{w,h}; fields.verified=false marks UNVERIFIED facts. v4 (all optional, still workflow-board/v1): card types container + note; gate ref.kind approval; card keys pin{port,sample,synthetic} and on_fail{target,record}; ref.via_container; v5: optional card run_mode inline|background|wait (hashed behaviour; dispatchable skill/tool/agent/step-task cards only; refused on gate/immutable/hook/container/note/structural); group_styles[g].collapsed (layout-only); edge port names may contain ':' (container cap:<tool> ports). v6: card type resource (fallback for any library item without a dedicated type; ref {kind,name} plus optional harness/path; structural, observe-only, never enforced or dispatched).",
+  "$comment": "workflow-board/v1 (v2 additions: step ref.kind, x-enforce-types, origin_module/module_version/pasted_at/proposal card fields; v2.1: optional card style{color} + fields{} and board group_styles{group:{color}}; v2.2: group_styles[group].size{w,h} optional min outline size; boards stay schema v1). Interpreted by validate.py (subset: type, required, enum, const, pattern, properties, items, minimum). x- keys are validator extensions. v3: card types boundary/component/datastore/external/person; top-level card keys drill (board id) and boundary (card id) and size{w,h}; fields.verified=false marks UNVERIFIED facts. v4 (all optional, still workflow-board/v1): card types container + note; gate ref.kind approval; card keys pin{port,sample,synthetic} and on_fail{target,record}; ref.via_container; v5: optional card run_mode inline|background|wait (hashed behaviour; dispatchable skill/tool/agent/step-task cards only; refused on gate/immutable/hook/container/note/structural); group_styles[g].collapsed (layout-only); edge port names may contain ':' (container cap:<tool> ports). v6: card type resource (fallback for any library item without a dedicated type; ref {kind,name} plus optional harness/path; structural, observe-only, never enforced or dispatched). v7: optional top-level generated{importer, sources[], board_sha, generated_at} written by wb_init.py (no-clobber); card fields src_path/src_anchor/src_sha (provenance) and inputs/outputs/contract/contract_src (station contract, parsed from the source or 'missing').",
   "type": "object",
   "required": [
     "schema",
@@ -286,6 +286,26 @@
           }
         },
         "additionalProperties": false
+      }
+    },
+    "generated": {
+      "type": "object",
+      "properties": {
+        "importer": {
+          "type": "string"
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "board_sha": {
+          "type": "string"
+        },
+        "generated_at": {
+          "type": "string"
+        }
       }
     }
   },

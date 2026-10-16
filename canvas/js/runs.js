@@ -15,6 +15,7 @@
   }
   function chip(el, card) {
     const old = el.querySelector(":scope > .v4-lastrun"); if (old) old.remove();
+    if (!Object.keys(sum).length) return; /* no run source for this board: show nothing rather than "never run" on every card */
     const s = sumBoard === (W.board && W.board.board) ? sum[card.id] : null;
     const c = E("button", "v4-lastrun", s ? "last run " + age(s.ts) + " (" + s.count + ")" : "never run");
     c.type = "button"; c.title = s ? s.event + " at " + s.ts : "no telemetry rows for this card";
