@@ -87,11 +87,11 @@ def test_propose_writes_nothing_in_target_and_apply_needs_approval():
     except SystemExit as e:
         assert "--approve" in str(e)
     assert not os.path.exists(target)
-    D.apply(plan["id"], approve=True)
+    D.apply(plan["id"], approve=True, token=plan["token"])
     assert os.path.isfile(os.path.join(target, "line-a", "SKILL.md"))
     assert json.load(open(os.path.join(target, "line-a", "line.json")))["board"] == "line-a"
     try:
-        D.apply(plan["id"], approve=True)
+        D.apply(plan["id"], approve=True, token=plan["token"])
     except SystemExit as e:
         assert "already applied" in str(e)
 
@@ -106,7 +106,7 @@ def test_existing_files_are_never_overwritten():
     plan, diff = D.propose("line-a", target)
     assert plan["state"] == "conflict" and "CONFLICT" in diff
     try:
-        D.apply(plan["id"], approve=True)
+        D.apply(plan["id"], approve=True, token=plan["token"])
     except SystemExit:
         pass
     assert open(os.path.join(target, "line-a", "SKILL.md")).read() == "mine"
@@ -121,7 +121,7 @@ def test_stale_board_or_racing_file_refuses_apply():
     b["cards"][0]["label"] = "Changed"
     save(bd, b)
     try:
-        D.apply(plan["id"], approve=True)
+        D.apply(plan["id"], approve=True, token=plan["token"])
     except SystemExit as e:
         assert "board changed" in str(e)
     assert not os.path.exists(os.path.join(target, "line-a"))
@@ -129,7 +129,7 @@ def test_stale_board_or_racing_file_refuses_apply():
     plan, _ = D.propose("line-a", target)
     os.makedirs(os.path.join(target, "line-a"))                                     # someone created it meanwhile
     try:
-        D.apply(plan["id"], approve=True)
+        D.apply(plan["id"], approve=True, token=plan["token"])
     except SystemExit as e:
         assert "appeared" in str(e)
     assert os.listdir(os.path.join(target, "line-a")) == []
@@ -141,7 +141,7 @@ def test_generated_skill_is_found_by_the_neutral_scanner():
     t, bd, target = env()
     save(bd, line_board())
     plan, _ = D.propose("line-a", target)
-    D.apply(plan["id"], approve=True)
+    D.apply(plan["id"], approve=True, token=plan["token"])
     col = S.Collector()
     S.scan_skill_dir("agents", target, col)
     assert [i["name"] for i in col.items] == ["line-a"]
@@ -195,7 +195,7 @@ def test_http_propose_apply_and_cross_origin_refused():
         assert code == 200 and j["plan"]["state"] == "proposed" and not os.path.exists(target)
         code, j2 = _post(port, "/deploy/apply", {"id": j["plan"]["id"]})
         assert code == 409 and not os.path.exists(target)                           # approve flag required
-        code, j2 = _post(port, "/deploy/apply", {"id": j["plan"]["id"], "approve": True})
+        code, j2 = _post(port, "/deploy/apply", {"id": j["plan"]["id"], "approve": True, "token": j["plan"]["token"]})
         assert code == 200 and os.path.isfile(os.path.join(target, "line-a", "SKILL.md"))
         req = urllib.request.Request(f"http://127.0.0.1:{port}/board/line-a", data=b"{}", method="PUT",
                                      headers={"Origin": "https://evil.example", "Content-Type": "application/json"})
@@ -230,3 +230,92 @@ def test_request_is_local_allowed_hosts_env():
         os.environ.pop("WB_ALLOWED_HOSTS", None)
         if old is not None:
             os.environ["WB_ALLOWED_HOSTS"] = old
+
+
+def _refused(fn, *a, **k):
+    try:
+        fn(*a, **k)
+    except SystemExit as e:
+        return str(e)
+    raise AssertionError("not refused")
+
+
+def test_proposal_id_is_validated_and_contained():
+    import deploy as D
+    t, bd, target = env()
+    save(bd, line_board())
+    plan, _ = D.propose("line-a", target)
+    outside = os.path.join(t, "outside")
+    os.makedirs(outside)
+    with open(os.path.join(outside, "plan.json"), "w") as f:
+        json.dump({"state": "proposed", "target": target, "files": []}, f)
+    for bad in ("../outside", "..\\outside",outside, "/etc/x", "", "A-b", "20260101T000000Z-../x", None, 7):
+        msg = _refused(D.apply, bad, approve=True, token="x")
+        assert "valid proposal id" in msg or "outside" in msg, (bad, msg)
+    assert not os.path.exists(target)
+
+
+def test_apply_needs_the_proposal_token():
+    import deploy as D
+    t, bd, target = env()
+    save(bd, line_board())
+    plan, _ = D.propose("line-a", target)
+    assert "token_sha" in plan and plan["token"] and plan["token"] not in json.dumps(
+        json.load(open(os.path.join(os.environ["WB_DEPLOY_DIR"], plan["id"], "plan.json"))))   # only the hash is stored
+    for tok in (None, "", "wrong"):
+        assert "token" in _refused(D.apply, plan["id"], approve=True, token=tok)
+    assert not os.path.exists(target)
+    D.apply(plan["id"], approve=True, token=plan["token"])
+    assert os.path.isfile(os.path.join(target, "line-a", "SKILL.md"))
+
+
+def test_diff_shows_every_line_of_a_long_file():
+    import deploy as D
+    t, bd, target = env()
+    n = 160                                                                           # a chain long enough that SKILL.md passes 400 lines
+    cards = [card(f"s{i}", "step", f"Station {i}", i * 10, ins=f"in{i}", outs=f"out{i}") for i in range(n)]
+    b = dict(line_board(), cards=cards, edges=[{"from": f"s{i}.next", "to": f"s{i+1}.in"} for i in range(n - 1)])
+    save(bd, b)
+    plan, diff = D.propose("line-a", target)
+    shown = D._read(os.path.join(os.environ["WB_DEPLOY_DIR"], plan["id"], "files", "line-a", "SKILL.md")).splitlines()
+    assert len(shown) > 400
+    assert "    | " + shown[-1] in diff and "Station 159" in diff       # nothing past line 400 is hidden
+
+
+def test_failed_rename_leaves_target_as_found():
+    import deploy as D
+    t, bd, target = env()
+    b = line_board()
+    save(bd, b)
+    plan, _ = D.propose("line-a", target)
+    real = os.rename
+    calls = []
+
+    def flaky(a, c):
+        calls.append(c)
+        if len(calls) == 2:
+            raise OSError("boom")
+        return real(a, c)
+    # force two new top-level folders so the second rename can fail after the first succeeded
+    pdir = os.path.join(os.environ["WB_DEPLOY_DIR"], plan["id"])
+    plan_json = os.path.join(pdir, "plan.json")
+    doc = json.load(open(plan_json))
+    extra = {"path": "zz-extra/SKILL.md", "action": "create", "sha": D._sha("x\n")}
+    os.makedirs(os.path.join(pdir, "files", "zz-extra"))
+    with open(os.path.join(pdir, "files", "zz-extra", "SKILL.md"), "w", encoding="utf-8") as f:
+        f.write("x\n")
+    doc["files"].append(extra)
+    with open(plan_json, "w") as f:
+        json.dump(doc, f)
+    os.rename = flaky
+    try:
+        try:
+            D.apply(plan["id"], approve=True, token=plan["token"])
+        except OSError:
+            pass
+        else:
+            raise AssertionError("rename failure swallowed")
+    finally:
+        os.rename = real
+    left = [n for n in (os.listdir(target) if os.path.isdir(target) else []) if not n.startswith(".")]
+    assert left == []                                                                 # the first folder was taken back out

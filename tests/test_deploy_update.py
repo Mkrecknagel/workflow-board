@@ -22,7 +22,7 @@ def first_deploy():
     t, bd, target = env()
     save(bd, line_board())
     plan, _ = D.propose("line-a", target)
-    D.apply(plan["id"], approve=True)
+    D.apply(plan["id"], approve=True, token=plan["token"])
     return t, bd, target
 
 
@@ -42,7 +42,7 @@ def test_changed_board_updates_generated_files_with_a_diff_and_rolls_back():
     assert plan["state"] == "proposed"
     assert [f["action"] for f in plan["files"] if f["path"].endswith("SKILL.md")] == ["update"]
     assert "-### 1. Gather" in diff and "+### 1. Gather everything" in diff        # unified diff of the change
-    plan = D.apply(plan["id"], approve=True)
+    plan = D.apply(plan["id"], approve=True, token=plan["token"])
     assert plan["drift"] == [] and "### 1. Gather everything" in deployed(target)
     D.rollback(plan["id"])
     assert deployed(target) == before                                             # restored from the snapshot
@@ -52,7 +52,7 @@ def test_rollback_of_a_first_deploy_removes_what_it_created():
     t, bd, target = env()
     save(bd, line_board())
     plan, _ = D.propose("line-a", target)
-    plan = D.apply(plan["id"], approve=True)
+    plan = D.apply(plan["id"], approve=True, token=plan["token"])
     D.rollback(plan["id"])
     assert not os.path.exists(os.path.join(target, "line-a"))
 
@@ -68,13 +68,13 @@ def test_hand_edit_is_a_conflict_unless_adopted():
     plan, diff = D.propose("line-a", target)
     assert plan["state"] == "conflict" and "edited by hand" in diff
     try:
-        D.apply(plan["id"], approve=True)
+        D.apply(plan["id"], approve=True, token=plan["token"])
     except SystemExit:
         pass
     assert "my own note" in open(p).read()                                        # never overwritten
     plan, diff = D.propose("line-a", target, adopt=True)
     assert plan["state"] == "proposed" and "adopting" in diff
-    plan = D.apply(plan["id"], approve=True)
+    plan = D.apply(plan["id"], approve=True, token=plan["token"])
     assert "my own note" not in open(p).read()
     D.rollback(plan["id"])
     assert "my own note" in open(p).read()                                        # adoption is reversible
@@ -104,7 +104,7 @@ def test_changed_source_sop_refuses_apply():
     with open(sop, "a") as f:
         f.write("changed after import\n")
     try:
-        D.apply(plan["id"], approve=True)
+        D.apply(plan["id"], approve=True, token=plan["token"])
         raise AssertionError("stale source accepted")
     except SystemExit as e:
         assert "source files changed" in str(e)

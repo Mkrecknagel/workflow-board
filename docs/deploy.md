@@ -22,7 +22,7 @@ From the page: **Deploy**, choose the skills folder and name, **Propose**, read 
 From a terminal:
 
     python deploy.py propose <board> --target ~/.agents/skills [--name my-line]
-    python deploy.py apply <proposal id> --approve
+    python deploy.py apply <proposal id> --approve --token <token printed by propose>
     python deploy.py list
 
 Proposals are staged in `$WB_DEPLOY_DIR` (default `~/.workflow-board/deploy/<id>/`: `files/`, `plan.json`, `diff.txt`).

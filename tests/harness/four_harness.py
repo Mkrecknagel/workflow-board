@@ -60,7 +60,7 @@ def deploy_into(skills_dir):
         json.dump(fixture_board(), f)
     os.environ["WB_BOARD_DIRS"], os.environ["WB_DEPLOY_DIR"] = bd, os.path.join(t, "deploy")
     plan, _ = D.propose(LINE, skills_dir)
-    return D.apply(plan["id"], approve=True)
+    return D.apply(plan["id"], approve=True, token=plan["token"])
 
 
 def spec_check(skill_md):
