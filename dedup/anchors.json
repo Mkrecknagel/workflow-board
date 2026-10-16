@@ -1,0 +1,9 @@
+{
+  "anchors": [
+    {
+      "name": "activity-log",
+      "title": "Append event to activity ledger",
+      "pattern": "\\b(append|appends|log|logs|record|records|write|writes)\\b.{0,80}\\bactivity (log|ledger|entry|md)\\b"
+    }
+  ]
+}

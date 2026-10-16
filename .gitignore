@@ -16,7 +16,8 @@ boards/*
 tickets/
 inventory/
 splits/
-dedup/
+/dedup/*
+!/dedup/anchors.json
 proposals/
 registry-root/
 adapters/codex/out/*
