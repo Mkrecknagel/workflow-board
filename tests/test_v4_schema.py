@@ -177,6 +177,15 @@ def test_unknown_edge_port_still_rejected():
 
 # ---------------- server skeleton + browser (temp copy, loopback) ----------------
 
+def _free_port():
+    import socket
+    sk = socket.socket()
+    sk.bind(("127.0.0.1", 0))
+    port = sk.getsockname()[1]
+    sk.close()
+    return port
+
+
 def get(path):
     try:
         with urllib.request.urlopen(BASE + path, timeout=10) as r:
@@ -187,6 +196,12 @@ def get(path):
 
 @pytest.fixture(scope="module")
 def server():
+    global PORT, BASE
+    # A fixed port could already be answered by another (older) server whose boards differ: readiness then passed against
+    # the wrong process and /board/v4-demo 404'd. Take a free port unless one is pinned, and wait for THIS server's own board.
+    if "BOARD_TEST_PORT_V4" not in os.environ:
+        PORT = _free_port()
+        BASE = f"http://127.0.0.1:{PORT}"
     tmp = tempfile.mkdtemp(prefix="wb-v4n1-")
     wb = os.path.join(tmp, "wb")
     shutil.copytree(SRC, wb, ignore=shutil.ignore_patterns("__pycache__", "runs", "tickets", "proposals", "node_modules", "*.png", "executor", ".git"))
@@ -197,9 +212,11 @@ def server():
     env = dict(os.environ, WB_BOARD_DIR=bd, WB_TICKETS_DIR=os.path.join(tmp, "tickets"), WB_DEDUP_DIR=os.path.join(tmp, "dedup"),
                WB_PROPOSALS_DIR=os.path.join(tmp, "proposals"), BOARD_PORT=str(PORT))
     proc = subprocess.Popen([sys.executable, os.path.join(wb, "serve.py")], env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    for _ in range(60):
+    for _ in range(100):
+        if proc.poll() is not None:
+            pytest.fail("server exited during start-up")
         try:
-            urllib.request.urlopen(BASE + "/boards", timeout=1).read()
+            urllib.request.urlopen(BASE + "/board/v4-demo", timeout=1).read()
             break
         except Exception:
             time.sleep(0.2)
