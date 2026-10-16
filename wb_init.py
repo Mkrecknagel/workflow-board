@@ -47,10 +47,17 @@ def board_sha(doc):
 def _atomic_write(path, doc):
     d = os.path.dirname(path)
     fd, tmp = tempfile.mkstemp(prefix=".wb-", dir=d)
-    with os.fdopen(fd, "w", encoding="utf-8") as f:
-        json.dump(doc, f, indent=2)
-        f.write("\n")
-    os.replace(tmp, path)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(doc, f, indent=2)
+            f.write("\n")
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):  # dump or replace failed: leave no .wb-* litter in the boards folder
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
 
 
 def carry_layout(new, old):

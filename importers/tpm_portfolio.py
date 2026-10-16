@@ -27,8 +27,48 @@ STEPS = ["Register", "Log", "Compile", "Validate", "Report"]
 SRC_CATS = ["slack", "sharepoint", "wiki", "taskei", "outlook_folder", "artifacts"]
 
 
+def _projects_dir(root):
+    """The projects folder: <root>/config.json paths.projects when present, else <root>/projects."""
+    sub = "projects"
+    cfg = jload(os.path.join(root, "config.json"))
+    if isinstance(cfg, dict) and isinstance(cfg.get("paths"), dict):
+        v = cfg["paths"].get("projects")
+        if isinstance(v, str) and v and not os.path.isabs(v) and ".." not in v.replace("\\", "/").split("/"):
+            sub = v
+    return os.path.join(root, sub)
+
+
+def _safe_alias(alias):
+    """An alias reduced to one safe path segment (no separators, no '..'), case kept."""
+    return re.sub(r"[^A-Za-z0-9_.-]+", "-", str(alias)).strip(".-") or "x"
+
+
+def _project_dir(root, alias):
+    """<projects>/<alias>, or the nearest folder named <alias> that holds a project.json (max depth 3); the default path if none."""
+    pdir, seg = _projects_dir(root), _safe_alias(alias)
+    direct = os.path.join(pdir, seg)
+    if os.path.isfile(os.path.join(direct, "project.json")):
+        return direct
+    for dp, dns, fns in os.walk(pdir):
+        depth = os.path.relpath(dp, pdir).count(os.sep) + 1 if dp != pdir else 0
+        if depth >= 3:
+            dns[:] = []
+        dns[:] = [d for d in dns if not d.startswith(".") and d not in ("kb", "0-kb", "node_modules")]
+        if os.path.basename(dp) == seg and "project.json" in fns:
+            return dp
+    return direct
+
+
+def _kb_index(d):
+    for kb in ("kb", "0-kb"):
+        p = os.path.join(d, kb, "_index.md")
+        if os.path.isfile(p):
+            return p
+    return os.path.join(d, "kb", "_index.md")
+
+
 def detect(root):
-    return os.path.isfile(os.path.join(root, "portfolio.json")) and os.path.isdir(os.path.join(root, "projects"))
+    return os.path.isfile(os.path.join(root, "portfolio.json")) and os.path.isdir(_projects_dir(root))
 
 
 def _index_meta(path):
@@ -92,10 +132,10 @@ def _typed(it, cid, x, y, group, extra=None):
 
 
 def _project_board(root, alias, entry, known, extra, skills_for_step, sop_files):
-    d = os.path.join(root, "projects", alias)
+    d = _project_dir(root, alias)
     pj_path = os.path.join(d, "project.json")
     proj = jload(pj_path) or {}
-    meta = _index_meta(os.path.join(d, "kb", "_index.md"))
+    meta = _index_meta(_kb_index(d))
     cards, edges, sources = [], [], [pj_path]
     for i, st in enumerate(STEPS):
         f = {"step": i + 1}
@@ -183,7 +223,7 @@ def build(root, opts):
     cards, y = [], 40
     for lane, members in sorted(lanes.items(), key=lambda kv: (-len(kv[1]), kv[0])):
         for i, p in enumerate(sorted(members, key=lambda q: (q.get("parent") is not None, q["alias"]))):
-            meta = _index_meta(os.path.join(root, "projects", p["alias"], "kb", "_index.md"))
+            meta = _index_meta(_kb_index(_project_dir(root, p["alias"])))
             f = {"state": p.get("state"), "health": meta.get("health"), "next_action": meta.get("next_action"), "parent": p.get("parent")}
             f.update(prov(pf_path, f"projects[{p['alias']}]"))
             cards.append(card(f"pj-{slug(p['alias'])}", p.get("name", p["alias"]), "project", p["alias"],

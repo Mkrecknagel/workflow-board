@@ -19,13 +19,14 @@ Board editor and store for agent workflows. Boards are JSON files that describe 
 
     python serve.py
 
-The server listens on `http://127.0.0.1:8765` (loopback only). `BOARD_PORT` overrides the port; `--roots claude=DIR,codex=DIR,kiro=DIR,agents=DIR` replaces the library install roots. `PUT /board/<name>` validates and writes atomically (invalid returns 422 and the file is untouched; immutable cards and their edges cannot be removed). `active.json` is never served or written here.
+The server listens on `http://127.0.0.1:8765` (loopback only). Every request must carry a loopback `Host` (and, for browser writes, a loopback `Origin`); anything else gets 403 (this stops DNS-rebinding and cross-site writes). To reach it through a reverse proxy or a tailnet name, list that host name in `WB_ALLOWED_HOSTS` (comma-separated, port ignored), for example `WB_ALLOWED_HOSTS=wb.example.ts.net`. `BOARD_PORT` overrides the port; `--roots claude=DIR,codex=DIR,kiro=DIR,agents=DIR` replaces the library install roots. `PUT /board/<name>` validates and writes atomically (invalid returns 422 and the file is untouched; immutable cards and their edges cannot be removed). `active.json` is never served or written here.
 
 ### Environment variables
 
 | Variable | Purpose | Default |
 |---|---|---|
 | `BOARD_PORT` | server port | `8765` |
+| `WB_ALLOWED_HOSTS` | extra `Host` names the server accepts besides loopback (comma-separated, port ignored), for a reverse proxy or tailnet name, e.g. `wb.example.ts.net` | none |
 | `WORKFLOW_BOARD_ROOT` | root folder scanned for instance boards (see below); `BOARD_REGISTRY_ROOT` is an alias used by tests | `registry-root/` next to `registry.py` |
 | `PW` | path to a `playwright-core` install, used by the browser tests and readability scripts | `playwright-core` (resolved by node) |
 | `WB_CLAUDE_DIR` | install folder scanned by the connector inventory | `~/.claude` |

@@ -211,3 +211,22 @@ def test_http_propose_apply_and_cross_origin_refused():
 if __name__ == "__main__":
     import pytest
     sys.exit(pytest.main([__file__, "-q"]))
+
+
+def test_request_is_local_allowed_hosts_env():
+    import serve
+    old = os.environ.pop("WB_ALLOWED_HOSTS", None)
+    try:
+        h = {"Host": "wb.example.ts.net"}
+        assert serve.request_is_local(h, 8765)[0] is False                         # default: loopback only
+        os.environ["WB_ALLOWED_HOSTS"] = "wb.example.ts.net, other.example.ts.net:443"
+        assert serve.request_is_local(h, 8765)[0] is True
+        assert serve.request_is_local({"Host": "wb.example.ts.net:9999", "Origin": "https://wb.example.ts.net"}, 8765)[0] is True
+        assert serve.request_is_local({"Host": "other.example.ts.net"}, 8765)[0] is True
+        assert serve.request_is_local({"Host": "evil.example"}, 8765)[0] is False
+        assert serve.request_is_local({"Host": "wb.example.ts.net", "Origin": "https://evil.example"}, 8765)[0] is False
+        assert serve.request_is_local({"Host": "127.0.0.1:8765"}, 8765)[0] is True
+    finally:
+        os.environ.pop("WB_ALLOWED_HOSTS", None)
+        if old is not None:
+            os.environ["WB_ALLOWED_HOSTS"] = old
