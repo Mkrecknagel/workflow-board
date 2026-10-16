@@ -1,0 +1,17 @@
+{
+  "schema": "workflow-board/v1",
+  "board": "dedup-demo",
+  "version": 1,
+  "cards": [
+    {"id": "step-01-8", "type": "step", "label": "8 Log the registration", "sop": "SOP-01", "pos": {"x": 0, "y": 0}},
+    {"id": "step-01-9", "type": "step", "label": "9 Confirm the source", "sop": "SOP-01", "pos": {"x": 0, "y": 200}},
+    {"id": "step-02-1", "type": "step", "label": "1 Open the day file", "sop": "SOP-02", "pos": {"x": 300, "y": 0}},
+    {"id": "step-02-2", "type": "step", "label": "2 Choose the project alias", "sop": "SOP-02", "pos": {"x": 300, "y": 200}},
+    {"id": "step-02-3", "type": "step", "label": "3 Write the entry", "sop": "SOP-02", "pos": {"x": 300, "y": 400}},
+    {"id": "step-03-8", "type": "step", "label": "8 Finish the compile", "sop": "SOP-03", "pos": {"x": 600, "y": 0}},
+    {"id": "step-04-1", "type": "step", "label": "1 Check page age", "sop": "SOP-04", "pos": {"x": 900, "y": 0}},
+    {"id": "step-04-2", "type": "step", "label": "2 Check contradictions", "sop": "SOP-04", "pos": {"x": 900, "y": 200}},
+    {"id": "step-04-3", "type": "step", "label": "3 Report the findings", "sop": "SOP-04", "pos": {"x": 900, "y": 400}}
+  ],
+  "edges": []
+}
