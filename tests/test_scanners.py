@@ -52,7 +52,7 @@ def kiro_root():
 
 def kiro_items(root):
     col = S.Collector()
-    S.scan_kiro(root, col)
+    S.scan_kiro(root, col, allow=[os.path.dirname(root)])  # the package dir sits beside the root, outside HOME on some machines
     return col.items
 
 
@@ -169,3 +169,46 @@ def test_cards_from_kiro_items_validate_and_unknowns_still_fail():
 if __name__ == "__main__":
     import pytest
     sys.exit(pytest.main([__file__, "-q"]))
+
+
+def test_hook_file_accepts_windows_and_quoted_paths():
+    tmp = tempfile.mkdtemp(prefix="wb-hookpath-")
+    plain = w(os.path.join(tmp, "a b", "gate.sh"), "#!/bin/sh\n")
+    agent = os.path.join(tmp, "agent.json")
+    assert S._hook_file(f'"{plain}" --x', agent) == S._norm(plain)                  # quoted, with a space
+    assert S._hook_file(f"'{plain}'", agent) == S._norm(plain)
+    assert S._hook_file(f"{plain} --x 1", agent) == S._norm(plain)                  # unquoted path with a space
+    back = plain.replace("/", "\\")
+    assert S._hook_file(f"{back} --x", agent) == S._norm(plain)                     # backslashes (a no-op on POSIX paths)
+    assert S._hook_file("echo hi", agent) == S._norm(agent)
+
+
+def test_drive_letter_pattern_matches():
+    toks = S._hook_candidates(r"C:\tools\pkg\gate.sh --token X")
+    assert r"C:\tools\pkg\gate.sh" in toks
+
+
+def test_resource_glob_is_capped_and_lazy():
+    tmp = tempfile.mkdtemp(prefix="wb-glob-")
+    for i in range(S.MAX_GLOB + 20):
+        w(os.path.join(tmp, f"f{i:04d}.md"), "# x\n")
+    got = S._resource_paths(f"file://{tmp}/*.md")
+    assert len(got) == S.MAX_GLOB
+
+
+def test_resources_outside_home_and_scanned_roots_are_not_read():
+    tmp = tempfile.mkdtemp(prefix="wb-outside-")
+    secret = w(os.path.join(tmp, "private.md"), "# secret doc\n")
+    root = os.path.join(tmp, "kiro")
+    w(os.path.join(root, "agents", "a.json"), json.dumps({"name": "a", "resources": [f"file://{secret}"]}))
+    real_home = S._home
+    S._home = lambda: os.path.join(tmp, "nohome")
+    try:
+        col = S.Collector()
+        S.scan_kiro(root, col)
+        assert not by(col.items, "skill", "private")                     # outside home and the root: skipped
+        col = S.Collector()
+        S.scan_kiro(root, col, allow=[tmp])
+        assert by(col.items, "skill", "private")                          # explicitly allowed: read
+    finally:
+        S._home = real_home
