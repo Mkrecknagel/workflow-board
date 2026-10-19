@@ -114,6 +114,10 @@ def test_built_skill_is_a_project_workflow_and_a_row_in_outputs():
     built = next(c for c in L["Outputs"] if c["fields"].get("tool") == "Built skills")
     assert [r["label"] for r in built["rows"]] == ["my-line"] and built["rows"][0]["drill"] == wf[0]["drill"]  # same board
     assert not [c for c in L["Outputs"] if c["type"] == "skill"]                  # no second full card
+    steps = [c for c in L["Project workflows"] if c["fields"].get("workflow") == "my-line"]
+    assert [c["label"] for c in steps] == ["A", "B"]                              # laid out as stations, like the TPM line
+    assert {"from": f"{wf[0]['id']}.result", "to": f"{steps[0]['id']}.in"} in b["edges"]
+    assert {"from": f"{steps[0]['id']}.next", "to": f"{steps[1]['id']}.in"} in b["edges"]
 
 
 def test_suggested_skill_from_activity_log():

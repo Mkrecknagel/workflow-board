@@ -23,6 +23,7 @@ board (TPM: Validate closes Compile). Flags: duplicate skills for one SOP, drift
 skill and SOP declare different contracts), and a split hint for SOPs with more than SPLIT_HINT steps.
 """
 import glob
+import json
 import os
 import re
 
@@ -353,7 +354,21 @@ def project_board(root, alias, entry, known, boards, stations, agent_item, expan
     meta = _index_meta(os.path.join(kbd, "_index.md"))
     cards, edges, sources = [], [], [pj_path]
     XI, XW = 40, 40 + COL + 80
-    XO = XW + (len(stations) + 1) * COL + 80
+    srcs = proj.get("sources") or {}
+    wfs, built_boards = [], {}  # (kind, key, name, path, board name or None, url)
+    for i, ws in enumerate(proj.get("workflow_skills") or []):
+        p = _skill_path(ws.get("path") or ws.get("url")) if isinstance(ws, dict) else None
+        name = (ws.get("name") if isinstance(ws, dict) else str(ws)) or (os.path.basename(os.path.dirname(p)) if p else "skill")
+        wfs.append(("uses", f"workflow_skills[{i}]", name, p, process_boards(f"doc-{slug(alias)}-uses{i}", p, boards, NAME) if p else None, ""))
+    for i, a in _entries(srcs.get("artifacts")):
+        url = isinstance(a, dict) and (a.get("url") or a.get("path")) or (a if isinstance(a, str) else "")
+        p = _skill_path(url)
+        if p:
+            bn = process_boards(f"doc-{slug(alias)}-skill{i}", p, boards, NAME)
+            built_boards[_key("artifacts", i)] = bn
+            wfs.append(("built", _key("artifacts", i), os.path.basename(os.path.dirname(p)), p, bn, url))
+    most = max([len(boards[w[4]]["cards"]) for w in wfs if w[4]] + [0])
+    XO = XW + (max(len(stations), most) + 1) * COL + 80
     Y0, DY = 230, 150
     compile_port = next((("next" if s is not stations[-1] else "out") for s in stations if s["step"] == "Compile"), None)
 
@@ -379,7 +394,6 @@ def project_board(root, alias, entry, known, boards, stations, agent_item, expan
                                                 else prov(os.path.join(root, "portfolio.json"), f"projects[{alias}]"))}})
 
     # inputs: one card per tool, one row per registered entry
-    srcs = proj.get("sources") or {}
     groups = {}
     for cat in INPUT_CATS:
         for i, s_ in _entries(srcs.get(cat)):
@@ -412,37 +426,33 @@ def project_board(root, alias, entry, known, boards, stations, agent_item, expan
     if agent_item and stations:
         edges.append({"from": "agent.result", "to": f"st-{slug(stations[0]['step'])}.in"})
 
-    # workflow skills: registered (workflow_skills[]) and suggested (activity logs; dashed, never auto-registered)
+    # project workflows: one row per workflow, laid out like the TPM line: the skill card (what runs it), then its
+    # top-level steps as stations, each opening its own sub-steps. Suggested skills (dashed) share a final row.
     yw, k = Y0 + ROW + 70, 0
-    registered, built_boards = set(), {}
-    for i, ws in enumerate(proj.get("workflow_skills") or []):
-        p = _skill_path(ws.get("path") or ws.get("url")) if isinstance(ws, dict) else None
-        name = (ws.get("name") if isinstance(ws, dict) else str(ws)) or (os.path.basename(os.path.dirname(p)) if p else "skill")
+    registered = set()
+    for kind, key, name, p, bn, url in wfs:
         registered.add(name)
-        f = pjf(f"workflow_skills[{i}]", "uses", skill_path=p, badge="uses")
+        f = pjf(key, kind, skill_path=p, url=url, badge="built here" if kind == "built" else "uses")
         if p:
             t = _read(p)
             f.update(contract_fields(*contract_of(md_tree(t), frontmatter(t[:4000]))))
-        c = card(f"uses-{k}", name, None, None, XW + k * COL, yw, LANES["uses"], f, ctype="skill",
-                 ref={"name": name, **({"path": p} if p else {})}, ports={"in": ["task"], "out": ["result"]},
-                 drill=process_boards(f"doc-{slug(alias)}-uses{k}", p, boards, NAME) if p else None)
-        cards.append(c)
-        k += 1
-    for i, a in _entries(srcs.get("artifacts")):  # built skills are this project's own workflows too
-        url = isinstance(a, dict) and (a.get("url") or a.get("path")) or (a if isinstance(a, str) else "")
-        p = _skill_path(url)
-        if not p:
-            continue
-        name = os.path.basename(os.path.dirname(p))
-        registered.add(name)
-        f = pjf(_key("artifacts", i), "built", skill_path=p, url=url, badge="built here")
-        t = _read(p)
-        f.update(contract_fields(*contract_of(md_tree(t), frontmatter(t[:4000]))))
-        built_boards[_key("artifacts", i)] = process_boards(f"doc-{slug(alias)}-skill{i}", p, boards, NAME)
-        cards.append(card(f"built-{i}", name, None, None, XW + k * COL, yw, LANES["uses"], f, ctype="skill",
-                          ref={"name": name, "path": p}, ports={"in": ["task"], "out": ["result"]}, drill=built_boards[_key("artifacts", i)]))
+        head = f"{'built' if kind == 'built' else 'uses'}-{slug(key)}"
+        cards.append(card(head, name, None, None, XW, yw, LANES["uses"], f, ctype="skill", ref={"name": name, **({"path": p} if p else {})},
+                          ports={"in": ["task"], "out": ["result"]}, drill=bn))
+        steps = boards[bn]["cards"] if bn else []
+        prev, prev_port = head, "result"
+        for j, sc in enumerate(steps):
+            c = json.loads(json.dumps(sc))
+            c["id"], c["group"], c["pos"] = f"{head}-{sc['id']}"[:80], LANES["uses"], {"x": XW + (j + 1) * COL, "y": yw}
+            c["ports"] = {"in": ["in"], "out": ["next"] if j < len(steps) - 1 else ["out"]}
+            c.setdefault("fields", {})["workflow"] = name
+            cards.append(c)
+            edges.append({"from": f"{prev}.{prev_port}", "to": f"{c['id']}.in"})
+            prev, prev_port = c["id"], "next"
+        yw += ROW + 70
         k += 1
     art_paths = {(_skill_path(a.get("url") or a.get("path")) if isinstance(a, dict) else None) for _, a in _entries(srcs.get("artifacts"))}
+    nsug = 0
     lib = {it["name"]: it for it in items if it.get("kind") == "skill" and str(it.get("path", "")).endswith("SKILL.md")}
     for name, cnt in sorted((act.get(alias) or {}).items(), key=lambda kv: -kv[1]):
         it = lib.get(name)
@@ -454,9 +464,10 @@ def project_board(root, alias, entry, known, boards, stations, agent_item, expan
         f = {"role": "suggested", "suggested": f"used {cnt}x in this project's activity log; not registered",
              "pj_path": pj_path, "pj_key": "new", "skill_name": name, "skill_path": it["path"]}
         f.update(prov(it["path"], name))
-        cards.append(card(f"sugg-{slug(name)}", name, None, None, XW + k * COL, yw, LANES["uses"], f, ctype="skill",
+        cards.append(card(f"sugg-{slug(name)}", name, None, None, XW + nsug * COL, yw, LANES["uses"], f, ctype="skill",
                           ref={"name": name, "path": it["path"]}, ports={"in": ["task"], "out": ["result"]}))
         k += 1
+        nsug += 1
     if not k:
         cards.append(card("uses-none", "No project workflows yet", "none", "none", XW, yw, LANES["uses"], {"role": "empty", **prov(pj_path, "(none registered)")}))
 
@@ -496,7 +507,7 @@ def project_board(root, alias, entry, known, boards, stations, agent_item, expan
             r.pop("drill", None)
             if built_boards.get(_key("artifacts", i)):
                 r["drill"] = built_boards[_key("artifacts", i)]
-            r["see"] = f"built-{i}"
+            r["see"] = f"built-{slug(_key('artifacts', i))}"
             out_groups.setdefault("Built skills", []).append(r)
             continue
         out_groups.setdefault(tool_of_url(url), []).append(_row(alias, boards, pj_path, _key("artifacts", i), "output",
@@ -510,7 +521,7 @@ def project_board(root, alias, entry, known, boards, stations, agent_item, expan
         cards.append(card("out-none", "No outputs yet", "none", "none", XO, yo, LANES["out"], {"role": "empty", **prov(pj_path, "(none registered)")}))
 
     # children
-    yc = max(y_in_end, yw + ROW, yo2 if m else yo + DY) + 60
+    yc = max(y_in_end, yw + (ROW if nsug or not k else 0), yo2 if m else yo + DY) + 60
     for j, ch in enumerate(proj.get("children") or []):
         cards.append(card(f"ch-{slug(ch)}", known.get(ch, ch), "project", ch, XI + (j % 6) * COL, yc + (j // 6) * ROW, LANES["kids"],
                           prov(pj_path, "children"), drill=f"p-{slug(ch)}" if ch in known else None))

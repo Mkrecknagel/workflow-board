@@ -16,7 +16,7 @@ import os
 import re
 
 COL, ROW = 280, 190
-LAYOUT_VERSION = 5  # bump when generated positions change; wb_init then stops carrying old positions over
+LAYOUT_VERSION = 6  # bump when generated positions change; wb_init then stops carrying old positions over
 
 
 def slug(s):
