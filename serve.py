@@ -392,6 +392,18 @@ class H(BaseHTTPRequestHandler):
             return self._err(403, why)
         u = urlparse(self.path)
         p = u.path
+        km = re.match(r"^/kb/([a-z0-9][a-z0-9-]*)/(_index|who|what|why|when|where|how|impact)$", p)
+        if km:  # a project's KB page: read-only plain text, inside the registry's projects folder only
+            from importers import tpm_portfolio as TP
+            return self._text_file(os.path.join(TP.kb_dir(TP.project_dir(REG.portfolio_root(), km.group(1))), km.group(2) + ".md"))
+        if p == "/report":  # a generated report: read-only plain text, inside <root>/reports only
+            from urllib.parse import parse_qs
+            rel = (parse_qs(u.query).get("p") or [""])[0]
+            base = os.path.realpath(os.path.join(REG.portfolio_root(), "reports"))
+            real = os.path.realpath(os.path.join(base, rel))
+            if not rel.endswith(".md") or not real.startswith(base + os.sep):
+                return self._err(404, "not found")
+            return self._text_file(real)
         if p.startswith("/canvas/"):
             return self._static(p)
         rm = RNAME.match(p)
@@ -456,6 +468,61 @@ class H(BaseHTTPRequestHandler):
         except TS.TicketError as e:
             return self._err(TCODE.get(e.code, 400), str(e))
 
+    def _projedit(self, up):
+        """POST /project/propose {board, card, role} -> diff of the project.json change for that card's entry.
+        POST /project/apply {id, approve: true} -> writes it (backup kept), then runs WB_REFRESH_CMD if set so the boards
+        show the change. The card's project.json path and key are read from the board on disk, never from the request."""
+        if self._actor() != "owner":
+            return self._err(403, "owner only")
+        n = int(self.headers.get("Content-Length") or 0)
+        if n <= 0 or n > MAX:
+            return self._err(400, "bad body size")
+        try:
+            body = json.loads(self.rfile.read(n).decode("utf-8"))
+        except ValueError:
+            return self._err(422, "unparseable JSON")
+        import projedit as PE
+        try:
+            if up == "/project/propose":
+                bp = REG.resolve(str(body.get("board") or ""), BOARDS)
+                doc = json.load(open(bp, encoding="utf-8")) if bp and os.path.isfile(bp) else None
+                c = next((x for x in (doc or {}).get("cards", []) if x.get("id") == body.get("card")), None)
+                f = (c or {}).get("fields") or {}
+                if not f.get("pj_path") or not f.get("pj_key"):
+                    return self._err(422, "this card is not a project.json entry")
+                plan, diff = PE.propose(f["pj_path"], f["pj_key"], str(body.get("role") or ""), f.get("skill_name"), f.get("skill_path"))
+                return self._send(200, json.dumps({"plan": plan, "diff": diff}))
+            if up == "/project/apply":
+                plan = PE.apply(str(body.get("id") or ""), approve=body.get("approve") is True)
+                out = {"plan": plan, "refreshed": False}
+                cmd = os.environ.get("WB_REFRESH_CMD")
+                if cmd:
+                    import shlex
+                    import subprocess
+                    try:
+                        r = subprocess.run(shlex.split(cmd), capture_output=True, text=True, timeout=180)
+                        out["refreshed"], out["refresh_output"] = r.returncode in (0, 3), (r.stdout + r.stderr)[-600:]
+                    except (OSError, subprocess.SubprocessError) as e:
+                        out["refresh_output"] = f"refresh failed: {e}"
+                return self._send(200, json.dumps(out))
+        except PE.Refused as e:
+            return self._err(409, str(e))
+        except (OSError, ValueError) as e:
+            return self._err(422, str(e))
+        return self._err(404, "not found")
+
+    def _text_file(self, path):
+        try:
+            data = open(path, "rb").read(2_000_000)
+        except OSError:
+            return self._err(404, "not found")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
     def _deploy(self, up):
         """POST /deploy/propose {board, target, name?} -> plan + diff (stages files, writes nothing in target).
         POST /deploy/apply {id, approve: true, token} -> creates the staged NEW files in target. Owner only; same-machine only
@@ -493,6 +560,8 @@ class H(BaseHTTPRequestHandler):
         up = self.path.split("?")[0]
         if up.startswith("/deploy/"):
             return self._deploy(up)
+        if up.startswith("/project/"):
+            return self._projedit(up)
         tm = TNAME.match(up)
         if not tm or tm.group(2) or tm.group(1) == "pending":
             return self._err(404, "not found")

@@ -52,7 +52,7 @@ NAMES = {n for n, _ in ROUTES}
 HANDLERS = {}
 LOAD_ERRORS = {}
 OPTIONAL_MODULES = ("serve_v4_inventory", "serve_v4_runs")
-V4_CANVAS_MODULES = ("kinds", "containers", "runs", "history", "dirty", "collapse", "tidy", "autolayout", "toolbar", "runmode", "nested", "minimap", "contracts")  # load order
+V4_CANVAS_MODULES = ("kinds", "containers", "runs", "history", "dirty", "collapse", "tidy", "autolayout", "toolbar", "runmode", "nested", "minimap", "contracts", "projroles")  # load order
 
 
 def register(name, fn):

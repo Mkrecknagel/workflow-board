@@ -16,6 +16,7 @@ import os
 import re
 
 COL, ROW = 280, 190
+LAYOUT_VERSION = 4  # bump when generated positions change; wb_init then stops carrying old positions over
 
 
 def slug(s):
@@ -68,7 +69,7 @@ def board(name, cards, edges, importer=None, sources=None):
     doc = {"schema": "workflow-board/v1", "board": name, "version": 1, "execution_mode": "observe",
            "saved_at": "2026-01-01T00:00:00Z", "integrity_hash": None, "cards": cards, "edges": edges}
     if importer:
-        doc["generated"] = {"importer": importer, "sources": sorted(set(sources or []))}
+        doc["generated"] = {"importer": importer, "sources": sorted(set(sources or [])), "layout": LAYOUT_VERSION}
     return doc
 
 

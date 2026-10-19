@@ -9,9 +9,32 @@
   if (!W || !K || !K.registerDecorator) return;
   const STATIONS = new Set(["step", "skill", "agent", "tool"]);
   const E = (t, c, x) => { const e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e };
+  const SAFE = /^(https?:\/\/|\/(kb|report)[/?])/i;  /* link only to the web or to this server's read-only views */
+  function extras(el, c, f) {
+    el.querySelectorAll(":scope > .wb-flag, :scope > .wb-open").forEach(n => n.remove());
+    const hd = el.querySelector(":scope > .hd");
+    const add = n => { if (hd && hd.nextSibling) el.insertBefore(n, hd.nextSibling); else el.appendChild(n) };
+    [["drift", "drift", "#fde8e8", "#9b1c1c"], ["duplicate_skills", "duplicate skills", "#fde8e8", "#9b1c1c"],
+     ["hint", "split this", "#eef2ff", "#3730a3"], ["suggested", "suggested", "#f3f4f6", "#374151"]].forEach(([k, t, bg, fg]) => {
+      if (!f[k]) return;
+      const b = E("div", "wb-flag", t); b.title = f[k];
+      b.style.cssText = "display:inline-block;font:10px system-ui,sans-serif;padding:0 6px;margin:2px 4px 0;border-radius:6px;background:" + bg + ";color:" + fg;
+      add(b);
+    });
+    el.style.borderStyle = f.role === "suggested" ? "dashed" : "";
+    const href = f.open || f.url;
+    if (href && SAFE.test(String(href))) {
+      const a = E("a", "wb-open", "open \u2197"); a.href = href; a.target = "_blank"; a.rel = "noopener noreferrer";
+      a.title = "Open " + href; a.style.cssText = "position:absolute;right:6px;top:-15px;background:#fff;padding:0 4px;border-radius:6px;font:10px system-ui,sans-serif;z-index:2";
+      a.addEventListener("pointerdown", ev => ev.stopPropagation());
+      el.appendChild(a);
+    }
+  }
   K.registerDecorator((el, c) => {
     const old = el.querySelector(":scope > .wb-contract"); if (old) old.remove();
     const f = c.fields || {};
+    extras(el, c, f);
+    if (c.type === "note" && f.banner === "true") { el.style.maxWidth = "none"; el.classList.add("wb-banner") }  /* the status banner spans the board */
     if (f.src_path) el.title = "source: " + f.src_path + (f.src_anchor ? " \u00a7 " + f.src_anchor : "") + (f.src_sha ? " (sha " + f.src_sha + ")" : "");
     if (!STATIONS.has(c.type) || !(f.contract || f.inputs || f.outputs)) return;
     const missing = f.contract === "missing";
