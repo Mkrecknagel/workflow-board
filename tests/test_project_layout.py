@@ -39,10 +39,28 @@ def test_every_project_board_has_the_same_lanes():
     assert banner["type"] == "note" and banner["fields"]["banner"] == "true" and "on track" in banner["fields"]["text"]
 
 
-def test_tpm_workflow_collapsed_except_on_the_agent_project():
+def test_tpm_workflow_starts_open_everywhere():
     *_, boards = build(agent_project="prog")
-    assert boards["p-prog"]["group_styles"]["TPM agent workflow"]["collapsed"] is False
-    assert boards["p-child"]["group_styles"]["TPM agent workflow"]["collapsed"] is True
+    assert all(boards[n]["group_styles"]["TPM agent workflow"]["collapsed"] is False for n in ("p-prog", "p-child"))
+
+
+def test_inputs_and_outputs_grouped_one_card_per_tool_with_rows():
+    t, pf, sops, sop, kiro, items = fixture()
+    pj = os.path.join(pf, "projects", "prog", "project.json")
+    d = json.load(open(pj))
+    d["sources"]["slack"] = [{"name": "#a"}, {"name": "#b"}]
+    d["sources"]["sharepoint"].append({"label": "Plan", "url": "https://x.sharepoint.com/p"})
+    d["sources"]["artifacts"] += [{"label": "Deck", "url": "https://x.sharepoint.com/d"}, {"label": "Repo", "url": "https://code.amazon.com/packages/X"}]
+    w(pj, d)
+    b = importers.get("tpm-portfolio").build(pf, {"sops": [sops], "items": items})["p-prog"]
+    L = lanes(b)
+    ins = {c["fields"]["tool"]: [r["label"] for r in c["rows"]] for c in L["Inputs"]}
+    assert ins == {"Slack": ["#a", "#b"], "SharePoint": ["Home", "Plan"]}
+    outs = {c["fields"]["tool"]: [r["pj_key"] for r in c["rows"]] for c in L["Outputs"] if c.get("rows") and c["fields"].get("tool") != "Reports"}
+    assert outs == {"SharePoint": ["sources.artifacts[1]"], "Code": ["sources.artifacts[2]"], "Local files": ["sources.artifacts[0]"]}
+    runbook = next(c for c in L["Outputs"] if c["fields"].get("tool") == "Local files")["rows"][0]
+    assert runbook["drill"].startswith("doc-prog-")                                # a row that opens its own board
+    assert all(e["to"] == "st-compile.in" for e in b["edges"] if e["from"].startswith("in-"))
 
 
 def test_validate_handed_off_and_called_becomes_a_gate():
@@ -78,7 +96,7 @@ def test_outputs_kb_reports_and_built_skill():
     assert kb["type"] == "datastore" and kb["drill"] == "kb-prog"
     page = next(c for c in boards["kb-prog"]["cards"] if c["label"] == "who")
     assert page["fields"]["open"] == "/kb/prog/who" and page["fields"]["summary"] == "Matt owns it."
-    reps = {c["label"]: c["fields"]["matched_by"] for c in out if c["fields"].get("role") == "report"}
+    reps = {r["label"]: r["matched_by"] for c in out if c["fields"].get("tool") == "Reports" for r in c["rows"]}
     assert reps == {"W1-prog-status": "file name", "other": "front matter"}
 
 
@@ -192,11 +210,13 @@ def test_http_routes_kb_report_and_role_move():
                 raise AssertionError(bad)
             except urllib.error.HTTPError as e:
                 assert e.code == 404, bad
-        card = next(c for c in b["cards"] if c["fields"].get("pj_key") == "sources.artifacts[0]")
-        code, j = _post(port, "/project/propose", {"board": "p-prog", "card": card["id"], "role": "input:wiki"},
-                        {"Origin": "https://evil.example"})
+        card = next(c for c in b["cards"] if any(r.get("pj_key") == "sources.artifacts[0]" for r in c.get("rows") or []))
+        body = {"board": "p-prog", "card": card["id"], "row": "sources.artifacts[0]", "role": "input:wiki"}
+        code, j = _post(port, "/project/propose", body, {"Origin": "https://evil.example"})
         assert code == 403
-        code, j = _post(port, "/project/propose", {"board": "p-prog", "card": card["id"], "role": "input:wiki"})
+        code, j = _post(port, "/project/propose", dict(body, row="sources.nope[9]"))
+        assert code == 422                                                         # unknown row
+        code, j = _post(port, "/project/propose", body)
         assert code == 200 and "moved_from" in j["diff"]
         code, j = _post(port, "/project/apply", {"id": j["plan"]["id"], "approve": True})
         assert code == 200 and json.load(open(pj))["sources"]["wiki"][-1]["label"] == "Runbook"

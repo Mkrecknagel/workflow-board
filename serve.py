@@ -488,6 +488,8 @@ class H(BaseHTTPRequestHandler):
                 doc = json.load(open(bp, encoding="utf-8")) if bp and os.path.isfile(bp) else None
                 c = next((x for x in (doc or {}).get("cards", []) if x.get("id") == body.get("card")), None)
                 f = (c or {}).get("fields") or {}
+                if body.get("row") is not None:  # a row of a grouped tool card
+                    f = next((r for r in (c or {}).get("rows") or [] if isinstance(r, dict) and r.get("id") == body.get("row")), None) or {}
                 if not f.get("pj_path") or not f.get("pj_key"):
                     return self._err(422, "this card is not a project.json entry")
                 plan, diff = PE.propose(f["pj_path"], f["pj_key"], str(body.get("role") or ""), f.get("skill_name"), f.get("skill_path"))

@@ -291,6 +291,57 @@ def _skill_path(ref):
     return p if p and p.endswith("SKILL.md") else None
 
 
+
+# ---- grouped tool cards ----
+
+TOOL_ORDER = ["Slack", "Outlook", "SharePoint", "Wiki", "Taskei", "Harmony", "Quip", "Code", "Local files", "Broadcast",
+              "QuickSight", "Web", "Reports", "Other"]
+TOOL_OF_CAT = {"slack": "Slack", "outlook_folder": "Outlook", "sharepoint": "SharePoint", "wiki": "Wiki", "taskei": "Taskei",
+               "harmony": "Harmony"}
+URL_TOOLS = [(r"sharepoint\.com|onedrive", "SharePoint"), (r"slack\.com", "Slack"), (r"w\.amazon\.com|/wiki/", "Wiki"),
+             (r"code\.amazon\.com|github\.com|gitlab|\.git$", "Code"), (r"quip", "Quip"), (r"taskei|sim\.amazon", "Taskei"),
+             (r"broadcast", "Broadcast"), (r"quicksight", "QuickSight"), (r"outlook|office\.com/mail", "Outlook")]
+ROWS_SHOWN = 5
+
+
+def tool_of_url(url):
+    u = str(url or "")
+    for pat, t in URL_TOOLS:
+        if re.search(pat, u, re.I):
+            return t
+    if u.startswith("file://") or u.startswith(("/", "~")):
+        return "Local files"
+    return "Web" if u.startswith("http") else "Other"
+
+
+def _row(alias, boards, pj_path, key, role, label, url, category=None, n=0):
+    doc = local_doc(url)
+    r = {"id": key, "label": str(label)[:120], "role": role, "pj_path": pj_path, "pj_key": key, **prov(pj_path, key)}
+    if category:
+        r["category"] = category
+    if url:
+        r["url"] = str(url)
+    if doc:
+        r["drill"] = process_boards(f"doc-{slug(alias)}-{slug(key)}", doc, boards, NAME)
+        if not r["drill"]:
+            del r["drill"]
+    return r
+
+
+def group_height(rows):
+    k = min(len(rows), ROWS_SHOWN)
+    return 96 + 26 * k + (24 if len(rows) > ROWS_SHOWN else 0)
+
+
+def group_card(cid, tool, rows, x, y, group, src, anchor, ports):
+    f = {"tool": tool, "count": len(rows)}
+    if src:
+        f.update(prov(src, anchor))
+    c = card(cid, f"{tool} \u00b7 {len(rows)}", "group", tool, x, y, group, f, ports=ports)
+    c["rows"] = rows
+    return c
+
+
 def project_board(root, alias, entry, known, boards, stations, agent_item, expanded, reports, act, items, pipeline_skill_paths):
     d = project_dir(root, alias)
     kbd = kb_dir(d)
@@ -324,21 +375,26 @@ def project_board(root, alias, entry, known, boards, stations, agent_item, expan
                                                 if os.path.isfile(os.path.join(kbd, "_index.md"))
                                                 else prov(os.path.join(root, "portfolio.json"), f"projects[{alias}]"))}})
 
-    # inputs
+    # inputs: one card per tool, one row per registered entry
     srcs = proj.get("sources") or {}
-    n = 0
+    groups = {}
     for cat in INPUT_CATS:
-        for i, s in _entries(srcs.get(cat)):
-            url = isinstance(s, dict) and (s.get("url") or s.get("path") or s.get("site_url")) or (s if isinstance(s, str) else "")
-            doc = local_doc(url)
-            drill = process_boards(f"doc-{slug(alias)}-in{n}", doc, boards, NAME) if doc else None
-            cards.append(card(f"in-{n}", f"{cat}: {_src_label(cat, s)}", "source", cat, XI, Y0 + n * DY, LANES["in"],
-                              pjf(_key(cat, i), "input", category=cat, url=url), drill=drill, ports={"in": [], "out": ["feeds"]}))
-            if compile_port:
-                edges.append({"from": f"in-{n}.feeds", "to": "st-compile.in"})
-            n += 1
+        for i, s_ in _entries(srcs.get(cat)):
+            url = isinstance(s_, dict) and (s_.get("url") or s_.get("path") or s_.get("site_url")) or (s_ if isinstance(s_, str) else "")
+            groups.setdefault(TOOL_OF_CAT.get(cat, cat), []).append(_row(alias, boards, pj_path, _key(cat, i), "input", _src_label(cat, s_), url,
+                                                                       category=cat, n=len(groups)))
+    y, n = Y0, 0
+    for tool in sorted(groups, key=lambda t: (TOOL_ORDER.index(t) if t in TOOL_ORDER else 99, t)):
+        cid = f"in-{slug(tool)}"
+        cards.append(group_card(cid, tool, groups[tool], XI, y, LANES["in"], pj_path, "sources", {"in": [], "out": ["feeds"]}))
+        if compile_port:
+            edges.append({"from": f"{cid}.feeds", "to": "st-compile.in"})
+        y += group_height(groups[tool]) + 30
+        n += 1
+    y_in_end = y
     if not n:
         cards.append(card("in-none", "No inputs registered", "none", "none", XI, Y0, LANES["in"], {"role": "empty", **prov(pj_path, "(none registered)")}))
+        y_in_end = Y0 + DY
 
     # TPM agent workflow: agent + one card per station
     if agent_item:
@@ -399,36 +455,45 @@ def project_board(root, alias, entry, known, boards, stations, agent_item, expan
         if compile_port:
             edges.append({"from": f"st-compile.{compile_port}", "to": "out-kb.write"})
         m += 1
+    yo2 = yo + (ROW + 30 if kb else 0)
+    reps = []
     for p, how in reports.get(alias, []):
         rel = os.path.relpath(p, os.path.join(root, "reports"))
-        f = {"role": "report", "open": f"/report?p={rel}", "matched_by": how}
-        f.update(prov(p, "(report)"))
-        cards.append(card(f"out-rep-{m}", os.path.basename(p)[:-3], "report", rel, XO, yo + m * DY + (ROW - DY if kb and m else 0), LANES["out"], f,
-                          ports={"in": ["in"], "out": []}))
+        r = {"id": f"rep-{len(reps)}", "label": os.path.basename(p)[:-3], "open": f"/report?p={rel}", "role": "report",
+             "matched_by": how, **prov(p, "(report)")}
+        reps.append(r)
+    if reps:
+        gc = group_card("out-reports", "Reports", reps, XO, yo2, LANES["out"], reps and reps[0]["src_path"], "(reports)", {"in": ["in"], "out": []})
+        gc["fields"].update(prov(os.path.join(root, "reports", os.path.relpath(reports[alias][0][0], os.path.join(root, "reports"))), "(reports)"))
+        cards.append(gc)
+        yo2 += group_height(reps) + 30
         m += 1
+    out_groups = {}
     for i, a in _entries(srcs.get("artifacts")):
         if isinstance(a, dict) and a.get("type") == "workflow-board":
             continue
         url = isinstance(a, dict) and (a.get("url") or a.get("path")) or (a if isinstance(a, str) else "")
         sp = _skill_path(url)
-        built = bool(sp)  # a built skill needs its SKILL.md on disk to be shown as a skill; else it is a plain artifact
-        f = pjf(_key("artifacts", i), "built" if built else "output", url=url, skill_path=sp)
-        if built:
-            c = card(f"out-{m}", f"built: {_src_label('artifacts', a)}", None, None, XO, yo + m * DY + (ROW - DY if kb and m else 0), LANES["out"], f, ctype="skill",
-                     ref={"name": os.path.basename(os.path.dirname(sp)) if sp else slug(_src_label("artifacts", a)), **({"path": sp} if sp else {})},
-                     ports={"in": ["task"], "out": ["result"]},
-                     drill=process_boards(f"doc-{slug(alias)}-out{m}", sp, boards, NAME) if sp else None)
-        else:
-            doc = local_doc(url)
-            c = card(f"out-{m}", _src_label("artifacts", a), "artifact", "artifact", XO, yo + m * DY + (ROW - DY if kb and m else 0), LANES["out"], f,
-                     drill=process_boards(f"doc-{slug(alias)}-out{m}", doc, boards, NAME) if doc else None, ports={"in": ["in"], "out": []})
-        cards.append(c)
+        if sp:  # a built skill stays its own pink card: it opens into its steps
+            f = pjf(_key("artifacts", i), "built", url=url, skill_path=sp)
+            cards.append(card(f"out-skill-{i}", f"built: {_src_label('artifacts', a)}", None, None, XO, yo2, LANES["out"], f, ctype="skill",
+                              ref={"name": os.path.basename(os.path.dirname(sp)), "path": sp}, ports={"in": ["task"], "out": ["result"]},
+                              drill=process_boards(f"doc-{slug(alias)}-skill{i}", sp, boards, NAME)))
+            yo2 += ROW + 30
+            m += 1
+            continue
+        out_groups.setdefault(tool_of_url(url), []).append(_row(alias, boards, pj_path, _key("artifacts", i), "output",
+                                                                 _src_label("artifacts", a), url, n=i))
+    for tool in sorted(out_groups, key=lambda t: (TOOL_ORDER.index(t) if t in TOOL_ORDER else 99, t)):
+        cards.append(group_card(f"out-{slug(tool)}", tool, out_groups[tool], XO, yo2, LANES["out"], pj_path, "sources.artifacts",
+                                {"in": ["in"], "out": []}))
+        yo2 += group_height(out_groups[tool]) + 30
         m += 1
     if not m:
         cards.append(card("out-none", "No outputs yet", "none", "none", XO, yo, LANES["out"], {"role": "empty", **prov(pj_path, "(none registered)")}))
 
     # children
-    yc = max(Y0 + max(n, 1) * DY, yw + ROW, yo + max(m, 1) * DY + (ROW - DY if kb else 0)) + 60
+    yc = max(y_in_end, yw + ROW, yo2 if m else yo + DY) + 60
     for j, ch in enumerate(proj.get("children") or []):
         cards.append(card(f"ch-{slug(ch)}", known.get(ch, ch), "project", ch, XI + (j % 6) * COL, yc + (j // 6) * ROW, LANES["kids"],
                           prov(pj_path, "children"), drill=f"p-{slug(ch)}" if ch in known else None))
@@ -439,7 +504,7 @@ def project_board(root, alias, entry, known, boards, stations, agent_item, expan
         if "drill" in c and not c["drill"]:
             del c["drill"]
     b = board(f"p-{slug(alias)}", cards, edges, NAME, sources + [s["sop"] for s in stations if s["sop"]])
-    b["group_styles"] = {LANES["tpm"]: {"collapsed": not expanded}}
+    b["group_styles"] = {LANES["tpm"]: {"collapsed": False}}  # open by default; the lane toggle still collapses it
     return b
 
 

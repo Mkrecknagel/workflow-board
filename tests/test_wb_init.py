@@ -90,7 +90,7 @@ def test_detect_and_board_set():
     t, pf, sops, sop, kiro, boards = build()
     assert importers.detect(pf).NAME == "tpm-portfolio" and importers.detect(t) is None
     assert {"portfolio", "p-prog", "p-child", "sop-compile", "sop-compile-2", "sop-07-extra", "runtime", "kb-prog"} <= set(boards)
-    assert any(n.startswith("doc-prog-out") for n in boards)                         # the local runbook artifact opens
+    assert any(n.startswith("doc-prog-sources-artifacts") for n in boards)            # the local runbook artifact opens
     assert "p-old" not in boards                                                      # archived skipped by default
 
 

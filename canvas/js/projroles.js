@@ -51,7 +51,7 @@
     pb.onclick = async () => {
       if (sel.value === current(c)) { pre.style.display = "block"; pre.textContent = "That is already its role."; return }
       pre.style.display = "block"; pre.textContent = "proposing...";
-      const r = await post("/project/propose", { board: W.boardName, card: c.id, role: sel.value });
+      const r = await post("/project/propose", Object.assign({ board: W.boardName, card: c.id, role: sel.value }, c.row ? { row: c.row } : {}));
       if (!r.ok) { pre.textContent = "Not proposed: " + ((r.j && r.j.error) || r.status); return }
       pid = r.j.plan.id; pre.textContent = r.j.diff; ab.style.display = "";
     };
