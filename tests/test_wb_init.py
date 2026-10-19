@@ -89,7 +89,8 @@ def build():
 def test_detect_and_board_set():
     t, pf, sops, sop, kiro, boards = build()
     assert importers.detect(pf).NAME == "tpm-portfolio" and importers.detect(t) is None
-    assert {"portfolio", "p-prog", "p-child", "sop-compile", "sop-compile-2", "sop-07-extra", "doc-prog-1", "runtime"} <= set(boards)
+    assert {"portfolio", "p-prog", "p-child", "sop-compile", "sop-compile-2", "sop-07-extra", "runtime", "kb-prog"} <= set(boards)
+    assert any(n.startswith("doc-prog-out") for n in boards)                         # the local runbook artifact opens
     assert "p-old" not in boards                                                      # archived skipped by default
 
 
@@ -104,23 +105,28 @@ def test_provenance_on_every_generated_card():
             assert f.get("src_path") and f.get("src_anchor") and len(f.get("src_sha", "")) == 16, (name, c["id"], f)
 
 
-def test_contracts_parsed_never_invented():
+def test_contracts_parsed_never_invented_and_drift_flagged():
     t, pf, sops, sop, kiro, boards = build()
     st = {c["id"]: c for c in boards["p-prog"]["cards"]}
     comp = st["st-compile"]["fields"]
-    assert comp["inputs"] == "project, tier" and comp["outputs"] == "kb/_index.md" and "contract" not in comp
-    assert st["st-register"]["fields"]["contract"] == "missing"                       # no SOP for this step
+    assert comp["inputs"] == "project" and comp["outputs"] == "kb"                  # the skill's contract wins...
+    assert "different inputs/outputs" in comp["drift"]                              # ...and differing from its SOP is drift
+    assert st["st-register"]["fields"]["contract"] == "missing"                       # no SOP and no skill for this step
     steps = [c for c in boards["sop-compile"]["cards"]]
     assert [c["label"] for c in steps] == ["1. Lock", "2. Sweep", "3. Write"]          # Troubleshooting is not a step
     assert all(c["fields"]["contract"] == "missing" for c in steps)                   # headings never become contracts
     assert steps[1]["drill"] == "sop-compile-2"
 
 
-def test_typed_skill_hook_agent_mcp_cards():
+def test_one_card_per_station_typed_by_what_runs_it():
     *_, boards = build()
-    sk = [c for c in boards["p-prog"]["cards"] if c["type"] == "skill"]
-    assert len(sk) == 1 and sk[0]["ref"]["name"] == "fx-compile" and sk[0]["fields"]["implements"] == "Compile"
-    assert sk[0]["fields"]["inputs"] == "project" and sk[0]["fields"]["outputs"] == "kb"   # from SKILL.md front matter
+    cards = boards["p-prog"]["cards"]
+    tpm = [c for c in cards if c["group"] == "TPM agent workflow"]
+    assert [c["id"] for c in tpm] == ["agent", "st-register", "st-log", "st-compile", "st-validate", "st-report"]
+    comp = next(c for c in tpm if c["id"] == "st-compile")
+    assert comp["type"] == "skill" and comp["ref"]["name"] == "fx-compile" and comp["drill"] == "sop-compile"
+    assert next(c for c in tpm if c["id"] == "st-register")["type"] == "step"           # nothing runs it: grey
+    assert not [c for c in cards if c["type"] == "skill" and c["group"] != "TPM agent workflow" and c["ref"].get("name") == "fx-compile"]
     rt = {c["type"] for c in boards["runtime"]["cards"]}
     assert {"agent", "hook", "tool"} <= rt
 
@@ -147,25 +153,27 @@ def test_no_clobber_keeps_edits_layout_and_notes():
     assert run_cli(pf, sops, kiro, out).returncode == 0
     p_prog, p_child = os.path.join(out, "p-prog.json"), os.path.join(out, "p-child.json")
     a = json.load(open(p_prog))
-    a["cards"][0]["pos"] = {"x": 777, "y": 777}
+    moved = next(c for c in a["cards"] if c["id"] == "st-compile")
+    moved["pos"] = {"x": 777, "y": 777}
     a["cards"].append({"id": "my-note", "type": "note", "label": "n", "immutable": False, "enabled": True, "execution_mode": "observe",
                        "ref": {"kind": "note"}, "ports": {"in": [], "out": []}, "pos": {"x": 0, "y": 0}, "fields": {"text": "mine"}})
     json.dump(a, open(p_prog, "w"))
     b = json.load(open(p_child))
-    b["cards"][0]["label"] = "EDITED BY USER"
+    edited = next(c for c in b["cards"] if c["type"] != "note")
+    edited["label"] = "EDITED BY USER"
     json.dump(b, open(p_child, "w"))
     w(sop, SOP.replace("### 3. Write", "### 3. Write all pages"))                 # source changed -> boards must update
     r = run_cli(pf, sops, kiro, out)
     assert r.returncode == 3, (r.stdout, r.stderr)
-    assert json.load(open(p_child))["cards"][0]["label"] == "EDITED BY USER"      # edited board kept
+    assert any(c["label"] == "EDITED BY USER" for c in json.load(open(p_child))["cards"])  # edited board kept
     conf = json.load(open(os.path.join(out, ".wb-init-conflicts.json")))["conflicts"]
     assert [c["board"] for c in conf] == ["p-child"]
     a2 = json.load(open(p_prog))
-    assert a2["cards"][0]["pos"] == {"x": 777, "y": 777}                          # layout carried over
+    assert next(c for c in a2["cards"] if c["id"] == "st-compile")["pos"] == {"x": 777, "y": 777}  # layout carried over
     assert any(c["id"] == "my-note" for c in a2["cards"])                          # sticky note carried over
     assert "3. Write all pages" in [c["label"] for c in json.load(open(os.path.join(out, "sop-compile.json")))["cards"]]
     r = run_cli(pf, sops, kiro, out, "--force")
-    assert r.returncode == 0 and json.load(open(p_child))["cards"][0]["label"] != "EDITED BY USER"
+    assert r.returncode == 0 and not any(c["label"] == "EDITED BY USER" for c in json.load(open(p_child))["cards"])
     assert os.listdir(os.path.join(out, ".wb-init-backup"))                       # old version backed up
     assert not os.path.exists(os.path.join(out, ".wb-init-conflicts.json"))
 

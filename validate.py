@@ -119,8 +119,10 @@ def resolve_refs(doc, schema):
                 raise Invalid(f"card {cid}: {t} ref missing '{k}'")
         if t == "skill":
             n = r["name"]
+            rp = str(r.get("path") or "")
             ok = re.fullmatch(r"[a-z0-9-]+", str(n)) and (os.path.isfile(os.path.join(CLAUDE, "skills", n, "SKILL.md"))
-                                                          or n in scanned_refs()["skill"])
+                                                          or n in scanned_refs()["skill"]
+                                                          or (rp.endswith("SKILL.md") and os.path.isfile(os.path.expanduser(rp))))
             if not ok:
                 raise Invalid(f"card {cid}: skill '{n}' not installed (no ~/.claude/skills/{n}/SKILL.md)")
         elif t == "hook":
