@@ -14,7 +14,7 @@
   const CATS = ["sharepoint", "slack", "wiki", "taskei", "harmony"];
   const OPTIONS = CATS.map(c => ["input:" + c, "Input: " + c]).concat([["output", "Output: artifact"], ["built", "Output: skill this project built"],
     ["uses", "Workflow skill this project uses"]]);
-  const LANE_ROLE = { "Inputs": "input", "Outputs": "output", "Workflow skills": "uses" };
+  const LANE_ROLE = { "Inputs": "input", "Outputs": "output", "Project workflows": "uses" };
   const roleOf = r => r.role === "input" ? "input:" + (r.category || "sharepoint") : r.role;
   const pseudo = (c, r) => ({ id: c.id, row: r.id, label: r.label, fields: { role: r.role, category: r.category, pj_key: r.pj_key } });
   const stop = ev => ev.stopPropagation();

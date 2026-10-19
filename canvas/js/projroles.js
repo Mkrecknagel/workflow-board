@@ -2,7 +2,7 @@
 /* Project roles (module): change what a project.json entry IS (input source, output artifact, built skill, workflow
    skill) from the board, proposal first. Two ways in, one flow:
      - a "Role" select in the inspector for cards that carry fields.pj_key (and suggested skills)
-     - dragging such a card into another lane (Inputs / Outputs / Workflow skills)
+     - dragging such a card into another lane (Inputs / Outputs / Project workflows)
    Either opens a panel: Propose -> shows the project.json diff -> Approve. The server writes project.json (backup kept)
    and, when WB_REFRESH_CMD is set, regenerates the boards; the page then reloads the board. The board itself is never
    edited here, so a generated board stays regenerable. Cancel puts a dragged card back. All text via textContent. */
@@ -13,7 +13,7 @@
   const CATS = ["sharepoint", "slack", "wiki", "taskei", "harmony"];
   const OPTIONS = CATS.map(c => ["input:" + c, "Input: " + c]).concat([["output", "Output: artifact"], ["built", "Output: skill this project built"],
     ["uses", "Workflow skill this project uses"]]);
-  const LANE_ROLE = { "Inputs": "input", "Outputs": "output", "Workflow skills": "uses" };
+  const LANE_ROLE = { "Inputs": "input", "Outputs": "output", "Project workflows": "uses" };
   const ROLE_LABEL = { input: "Input", output: "Output", built: "Built skill", uses: "Workflow skill", suggested: "Suggested (not registered)" };
   const editable = c => c && c.fields && (c.fields.pj_key || c.fields.role === "suggested") && ROLE_LABEL[c.fields.role];
   const current = c => c.fields.role === "input" ? "input:" + (c.fields.category || "sharepoint") : c.fields.role;

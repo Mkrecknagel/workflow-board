@@ -15,9 +15,10 @@
     const hd = el.querySelector(":scope > .hd");
     const add = n => { if (hd && hd.nextSibling) el.insertBefore(n, hd.nextSibling); else el.appendChild(n) };
     [["drift", "drift", "#fde8e8", "#9b1c1c"], ["duplicate_skills", "duplicate skills", "#fde8e8", "#9b1c1c"],
-     ["hint", "split this", "#eef2ff", "#3730a3"], ["suggested", "suggested", "#f3f4f6", "#374151"]].forEach(([k, t, bg, fg]) => {
+     ["hint", "split this", "#eef2ff", "#3730a3"], ["suggested", "suggested", "#f3f4f6", "#374151"],
+     ["badge", null, "#ecfdf5", "#065f46"]].forEach(([k, t, bg, fg]) => {
       if (!f[k]) return;
-      const b = E("div", "wb-flag", t); b.title = f[k];
+      const b = E("div", "wb-flag", t || f[k]); b.title = k === "badge" ? (f[k] === "built here" ? "This project built this skill; it is also listed in Outputs" : "This project's workflow uses this skill") : f[k];
       b.style.cssText = "display:inline-block;font:10px system-ui,sans-serif;padding:0 6px;margin:2px 4px 0;border-radius:6px;background:" + bg + ";color:" + fg;
       add(b);
     });

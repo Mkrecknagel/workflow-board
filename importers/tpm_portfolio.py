@@ -10,7 +10,10 @@ Reads, never writes:
   --sops DIR (optional)                      *.sop.md; NN-*.sop.md with NN 01-05 is pipeline step NN
 
 Every project board has the same lanes, so pages are predictable:
-  Status (banner) / Inputs | TPM agent workflow + Workflow skills | Outputs / Children
+  Status (banner) / Inputs | TPM agent workflow + Project workflows | Outputs / Children
+Project workflows holds one full card per skill the project uses (workflow_skills[]) OR built (an artifact whose
+folder holds a SKILL.md), badged "uses" / "built here"; built skills are also listed as rows on Outputs' Built skills
+card, which point at the same board.
 Stations: one card per pipeline step, typed by what runs it (explicit links only):
   skill  a SKILL.md whose front matter says `sop: SOP-NN`
   hook   a hook of the pipeline agent whose script file is named in the SOP text
@@ -31,7 +34,7 @@ STEPS = ["Register", "Log", "Compile", "Validate", "Report"]
 INPUT_CATS = ["slack", "sharepoint", "wiki", "taskei", "harmony", "outlook_folder"]
 KB_PAGES = ["_index", "who", "what", "why", "when", "where", "how", "impact"]
 SPLIT_HINT = 7
-LANES = {"status": "Status", "in": "Inputs", "tpm": "TPM agent workflow", "uses": "Workflow skills",
+LANES = {"status": "Status", "in": "Inputs", "tpm": "TPM agent workflow", "uses": "Project workflows",
          "out": "Outputs", "kids": "Children"}
 
 
@@ -294,7 +297,7 @@ def _skill_path(ref):
 
 # ---- grouped tool cards ----
 
-TOOL_ORDER = ["Slack", "Outlook", "SharePoint", "Wiki", "Taskei", "Harmony", "Quip", "Code", "Local files", "Broadcast",
+TOOL_ORDER = ["Built skills", "Slack", "Outlook", "SharePoint", "Wiki", "Taskei", "Harmony", "Quip", "Code", "Local files", "Broadcast",
               "QuickSight", "Web", "Reports", "Other"]
 TOOL_OF_CAT = {"slack": "Slack", "outlook_folder": "Outlook", "sharepoint": "SharePoint", "wiki": "Wiki", "taskei": "Taskei",
                "harmony": "Harmony"}
@@ -411,12 +414,12 @@ def project_board(root, alias, entry, known, boards, stations, agent_item, expan
 
     # workflow skills: registered (workflow_skills[]) and suggested (activity logs; dashed, never auto-registered)
     yw, k = Y0 + ROW + 70, 0
-    registered = set()
+    registered, built_boards = set(), {}
     for i, ws in enumerate(proj.get("workflow_skills") or []):
         p = _skill_path(ws.get("path") or ws.get("url")) if isinstance(ws, dict) else None
         name = (ws.get("name") if isinstance(ws, dict) else str(ws)) or (os.path.basename(os.path.dirname(p)) if p else "skill")
         registered.add(name)
-        f = pjf(f"workflow_skills[{i}]", "uses", skill_path=p)
+        f = pjf(f"workflow_skills[{i}]", "uses", skill_path=p, badge="uses")
         if p:
             t = _read(p)
             f.update(contract_fields(*contract_of(md_tree(t), frontmatter(t[:4000]))))
@@ -424,6 +427,20 @@ def project_board(root, alias, entry, known, boards, stations, agent_item, expan
                  ref={"name": name, **({"path": p} if p else {})}, ports={"in": ["task"], "out": ["result"]},
                  drill=process_boards(f"doc-{slug(alias)}-uses{k}", p, boards, NAME) if p else None)
         cards.append(c)
+        k += 1
+    for i, a in _entries(srcs.get("artifacts")):  # built skills are this project's own workflows too
+        url = isinstance(a, dict) and (a.get("url") or a.get("path")) or (a if isinstance(a, str) else "")
+        p = _skill_path(url)
+        if not p:
+            continue
+        name = os.path.basename(os.path.dirname(p))
+        registered.add(name)
+        f = pjf(_key("artifacts", i), "built", skill_path=p, url=url, badge="built here")
+        t = _read(p)
+        f.update(contract_fields(*contract_of(md_tree(t), frontmatter(t[:4000]))))
+        built_boards[_key("artifacts", i)] = process_boards(f"doc-{slug(alias)}-skill{i}", p, boards, NAME)
+        cards.append(card(f"built-{i}", name, None, None, XW + k * COL, yw, LANES["uses"], f, ctype="skill",
+                          ref={"name": name, "path": p}, ports={"in": ["task"], "out": ["result"]}, drill=built_boards[_key("artifacts", i)]))
         k += 1
     art_paths = {(_skill_path(a.get("url") or a.get("path")) if isinstance(a, dict) else None) for _, a in _entries(srcs.get("artifacts"))}
     lib = {it["name"]: it for it in items if it.get("kind") == "skill" and str(it.get("path", "")).endswith("SKILL.md")}
@@ -441,7 +458,7 @@ def project_board(root, alias, entry, known, boards, stations, agent_item, expan
                           ref={"name": name, "path": it["path"]}, ports={"in": ["task"], "out": ["result"]}))
         k += 1
     if not k:
-        cards.append(card("uses-none", "No workflow skills yet", "none", "none", XW, yw, LANES["uses"], {"role": "empty", **prov(pj_path, "(none registered)")}))
+        cards.append(card("uses-none", "No project workflows yet", "none", "none", XW, yw, LANES["uses"], {"role": "empty", **prov(pj_path, "(none registered)")}))
 
     # outputs: knowledge base, reports, artifacts (a skill folder is a BUILT skill)
     yo, m = Y0, 0
@@ -474,13 +491,13 @@ def project_board(root, alias, entry, known, boards, stations, agent_item, expan
             continue
         url = isinstance(a, dict) and (a.get("url") or a.get("path")) or (a if isinstance(a, str) else "")
         sp = _skill_path(url)
-        if sp:  # a built skill stays its own pink card: it opens into its steps
-            f = pjf(_key("artifacts", i), "built", url=url, skill_path=sp)
-            cards.append(card(f"out-skill-{i}", f"built: {_src_label('artifacts', a)}", None, None, XO, yo2, LANES["out"], f, ctype="skill",
-                              ref={"name": os.path.basename(os.path.dirname(sp)), "path": sp}, ports={"in": ["task"], "out": ["result"]},
-                              drill=process_boards(f"doc-{slug(alias)}-skill{i}", sp, boards, NAME)))
-            yo2 += ROW + 30
-            m += 1
+        if sp:  # a built skill: its full card is in Project workflows; here it is a row pointing at the same board
+            r = _row(alias, boards, pj_path, _key("artifacts", i), "built", os.path.basename(os.path.dirname(sp)), url)
+            r.pop("drill", None)
+            if built_boards.get(_key("artifacts", i)):
+                r["drill"] = built_boards[_key("artifacts", i)]
+            r["see"] = f"built-{i}"
+            out_groups.setdefault("Built skills", []).append(r)
             continue
         out_groups.setdefault(tool_of_url(url), []).append(_row(alias, boards, pj_path, _key("artifacts", i), "output",
                                                                  _src_label("artifacts", a), url, n=i))

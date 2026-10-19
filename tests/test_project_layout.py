@@ -30,7 +30,7 @@ def lanes(b):
 
 def test_every_project_board_has_the_same_lanes():
     *_, boards = build()
-    want = {"Status", "Inputs", "TPM agent workflow", "Workflow skills", "Outputs", "Children"}
+    want = {"Status", "Inputs", "TPM agent workflow", "Project workflows", "Outputs", "Children"}
     for n in ("p-prog", "p-child"):
         assert set(lanes(boards[n])) == want, n                                     # empty lanes still shown
     child = lanes(boards["p-child"])
@@ -100,6 +100,22 @@ def test_outputs_kb_reports_and_built_skill():
     assert reps == {"W1-prog-status": "file name", "other": "front matter"}
 
 
+def test_built_skill_is_a_project_workflow_and_a_row_in_outputs():
+    t, pf, sops, sop, kiro, items = fixture()
+    sk = w(os.path.join(t, "built", "my-line", "SKILL.md"), "---\nname: my-line\ndescription: d\n---\n# my-line\n\n## Steps\n\n### A\na\n\n### B\nb\n")
+    pj = os.path.join(pf, "projects", "prog", "project.json")
+    d = json.load(open(pj))
+    d["sources"]["artifacts"].append({"label": "My line", "url": "file://" + os.path.dirname(sk), "type": "skill"})
+    w(pj, d)
+    b = importers.get("tpm-portfolio").build(pf, {"sops": [sops], "items": items})["p-prog"]
+    L = lanes(b)
+    wf = [c for c in L["Project workflows"] if c["fields"].get("role") == "built"]
+    assert len(wf) == 1 and wf[0]["ref"]["name"] == "my-line" and wf[0]["fields"]["badge"] == "built here" and wf[0]["drill"]
+    built = next(c for c in L["Outputs"] if c["fields"].get("tool") == "Built skills")
+    assert [r["label"] for r in built["rows"]] == ["my-line"] and built["rows"][0]["drill"] == wf[0]["drill"]  # same board
+    assert not [c for c in L["Outputs"] if c["type"] == "skill"]                  # no second full card
+
+
 def test_suggested_skill_from_activity_log():
     t, pf, sops, sop, kiro, items = fixture()
     extra = w(os.path.join(t, "agents-root", "skills", "helper", "SKILL.md"), "---\nname: helper\ndescription: h\n---\n# h\n")
@@ -108,9 +124,9 @@ def test_suggested_skill_from_activity_log():
     w(os.path.join(pf, "activity", "2026-10-01.md"),
       '---\nschema: 1\nalias: "prog"\nskills_used: ["helper", "source-read"]\n---\nDid things.\n')
     boards = importers.get("tpm-portfolio").build(pf, {"sops": [sops], "items": items})
-    sug = [c for c in lanes(boards["p-prog"])["Workflow skills"] if c["fields"].get("role") == "suggested"]
+    sug = [c for c in lanes(boards["p-prog"])["Project workflows"] if c["fields"].get("role") == "suggested"]
     assert [c["ref"]["name"] for c in sug] == ["helper"] and sug[0]["fields"]["skill_path"] == extra
-    assert not [c for c in lanes(boards["p-child"])["Workflow skills"] if c["fields"].get("role") == "suggested"]
+    assert not [c for c in lanes(boards["p-child"])["Project workflows"] if c["fields"].get("role") == "suggested"]
 
 
 # ---- projedit ----
