@@ -226,11 +226,11 @@ def test_importer_finds_nested_and_configured_project_folders_and_slugs_alias():
     imp = importers.get("tpm-portfolio")
     assert imp.detect(root)
     boards = imp.build(root, {"items": []})
-    about = [c for c in boards["p-top"]["cards"] if c["id"] == "about"][0]
+    about = [c for c in boards["p-top"]["cards"] if c["id"] == "status"][0]
     assert about["fields"]["context"] == "top ctx" and about["fields"]["health"] == "on_track"   # configured folder + 0-kb
-    kid = [c for c in boards["p-kid"]["cards"] if c["id"] == "about"][0]
+    kid = [c for c in boards["p-kid"]["cards"] if c["id"] == "status"][0]
     assert kid["fields"]["context"] == "kid ctx"                                                   # nested child found by walking
-    bad = [c for c in boards[[n for n in boards if "escape" in n][0]]["cards"] if c["id"] == "about"][0]
+    bad = [c for c in boards[[n for n in boards if "escape" in n][0]]["cards"] if c["id"] == "status"][0]
     assert bad["fields"].get("context") is None and "OUTSIDE" not in json.dumps(boards)                                                        # alias slugged, no traversal
 
 

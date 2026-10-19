@@ -316,7 +316,11 @@ def project_board(root, alias, entry, known, boards, stations, agent_item, expan
                                        f"Last compiled: {meta['last_compiled'][:10]}" if meta.get("last_compiled") else ""] if x)
     cards.append({"id": "status", "type": "note", "label": "Status", "immutable": False, "enabled": True, "execution_mode": "observe",
                   "ref": {"kind": "note"}, "ports": {"in": [], "out": []}, "pos": {"x": XI, "y": 20}, "group": LANES["status"],
-                  "size": {"w": XO + COL - XI, "h": 70}, "fields": {"text": banner, "banner": "true", **(prov(os.path.join(kbd, "_index.md"), "front matter")
+                  "size": {"w": XO + COL - XI, "h": 70}, "fields": {"text": banner, "banner": "true",
+                             **{k: v for k, v in (("health", meta.get("health")), ("next_action", meta.get("next_action")),
+                                                  ("last_compiled", meta.get("last_compiled")), ("state", entry.get("state")),
+                                                  ("context", proj.get("context"))) if v},
+                             **(prov(os.path.join(kbd, "_index.md"), "front matter")
                                                 if os.path.isfile(os.path.join(kbd, "_index.md"))
                                                 else prov(os.path.join(root, "portfolio.json"), f"projects[{alias}]"))}})
 
